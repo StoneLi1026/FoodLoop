@@ -23,11 +23,25 @@ open FoodLoop.xcodeproj
 # Check current status
 git status
 
-# Pull latest changes (when working with team)
+# Pull latest changes from GitHub
 git pull origin main
 
 # Create feature branch for new work
 git checkout -b feature/your-feature-name
+```
+
+### GitHub Integration
+Your project is connected to: https://github.com/StoneLi1026/FoodLoop.git
+
+```bash
+# Push changes to GitHub
+git push origin main
+
+# Push new branch to GitHub
+git push -u origin feature/your-feature-name
+
+# Check remote status
+git remote -v
 ```
 
 ### 2. During Development
