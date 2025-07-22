@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C973CA1E2E2F6C8F00F4FF04 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = C973CA1D2E2F6C8F00F4FF04 /* FirebaseFirestore */; };
+		C973CA212E2F6D8000F4FF04 /* GeoFireUtils in Frameworks */ = {isa = PBXBuildFile; productRef = C973CA202E2F6D8000F4FF04 /* GeoFireUtils */; };
 		C97F9BC22E05816B000D8C6B /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C97F9BC12E05816B000D8C6B /* FirebaseAuth */; };
 		C97F9BC82E05847E000D8C6B /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = C97F9BC72E05847E000D8C6B /* FirebaseAnalytics */; };
 		C97F9BCD2E0588D9000D8C6B /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = C97F9BCC2E0588D9000D8C6B /* GoogleSignIn */; };
@@ -75,6 +77,8 @@
 				C97F9BC82E05847E000D8C6B /* FirebaseAnalytics in Frameworks */,
 				C97F9BC22E05816B000D8C6B /* FirebaseAuth in Frameworks */,
 				C97F9BCD2E0588D9000D8C6B /* GoogleSignIn in Frameworks */,
+				C973CA1E2E2F6C8F00F4FF04 /* FirebaseFirestore in Frameworks */,
+				C973CA212E2F6D8000F4FF04 /* GeoFireUtils in Frameworks */,
 				C97F9BCF2E058914000D8C6B /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -96,12 +100,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C973CA1C2E2F6C8F00F4FF04 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		C9D125502DFDB29C000992BC = {
 			isa = PBXGroup;
 			children = (
 				C9D1255B2DFDB29C000992BC /* FoodLoop */,
 				C9D125692DFDB29E000992BC /* FoodLoopTests */,
 				C9D125732DFDB29E000992BC /* FoodLoopUITests */,
+				C973CA1C2E2F6C8F00F4FF04 /* Frameworks */,
 				C9D1255A2DFDB29C000992BC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -140,6 +152,8 @@
 				C97F9BC72E05847E000D8C6B /* FirebaseAnalytics */,
 				C97F9BCC2E0588D9000D8C6B /* GoogleSignIn */,
 				C97F9BCE2E058914000D8C6B /* GoogleSignInSwift */,
+				C973CA1D2E2F6C8F00F4FF04 /* FirebaseFirestore */,
+				C973CA202E2F6D8000F4FF04 /* GeoFireUtils */,
 			);
 			productName = FoodLoop;
 			productReference = C9D125592DFDB29C000992BC /* FoodLoop.app */;
@@ -226,6 +240,7 @@
 			packageReferences = (
 				C97F9BC02E0580ED000D8C6B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				C97F9BCB2E0588D9000D8C6B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				C973CA1F2E2F6D5400F4FF04 /* XCRemoteSwiftPackageReference "geofire-objc" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C9D1255A2DFDB29C000992BC /* Products */;
@@ -594,6 +609,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C973CA1F2E2F6D5400F4FF04 /* XCRemoteSwiftPackageReference "geofire-objc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/geofire-objc.git";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 		C97F9BC02E0580ED000D8C6B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
@@ -613,6 +636,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C973CA1D2E2F6C8F00F4FF04 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C97F9BC02E0580ED000D8C6B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		C973CA202E2F6D8000F4FF04 /* GeoFireUtils */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C973CA1F2E2F6D5400F4FF04 /* XCRemoteSwiftPackageReference "geofire-objc" */;
+			productName = GeoFireUtils;
+		};
 		C97F9BC12E05816B000D8C6B /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C97F9BC02E0580ED000D8C6B /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

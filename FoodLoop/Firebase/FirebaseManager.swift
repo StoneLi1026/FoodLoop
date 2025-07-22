@@ -15,7 +15,7 @@ class FirebaseManager: ObservableObject {
     private init() {
         // Configure Firestore settings
         let settings = FirestoreSettings()
-        settings.isPersistenceEnabled = true
+        settings.cacheSettings = PersistentCacheSettings()
         db.settings = settings
     }
     
@@ -60,7 +60,26 @@ class FirebaseManager: ObservableObject {
                 isActive: true
             )
             
-            try await userRef.setData(from: newUser)
+            do {
+                try await userRef.setData(from: newUser)
+            } catch {
+                // Fallback to manual data setting
+                let userData: [String: Any] = [
+                    "uid": newUser.uid,
+                    "name": newUser.name,
+                    "email": newUser.email,
+                    "photo_url": newUser.photoURL,
+                    "member_since": Timestamp(date: newUser.memberSince),
+                    "share_count": newUser.shareCount,
+                    "receive_count": newUser.receiveCount,
+                    "is_premium": newUser.isPremium,
+                    "points": newUser.points,
+                    "created_at": Timestamp(date: newUser.createdAt),
+                    "updated_at": Timestamp(date: newUser.updatedAt),
+                    "is_active": newUser.isActive
+                ]
+                try await userRef.setData(userData)
+            }
         }
         
         // Return the user data

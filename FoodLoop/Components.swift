@@ -174,6 +174,7 @@ struct BadgeView: View {
 
 
 // 集中管理食物資料的 Repository
+@MainActor
 class FoodRepository: ObservableObject {
     @Published var foodItems: [FoodItem] = []
     @Published var isLoading: Bool = false
@@ -193,7 +194,7 @@ class FoodRepository: ObservableObject {
     // Set up real-time listener for food items
     private func setupRealtimeListener() {
         listener = firebaseManager.listenToFoodItems { [weak self] firebaseItems in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.foodItems = firebaseItems.map { $0.toFoodItem() }
                 self?.isLoading = false
             }
@@ -242,10 +243,8 @@ class FoodRepository: ObservableObject {
             try await firebaseManager.updateUserPoints(uid: uploaderID, points: 10)
             
         } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = "Failed to add food item: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            errorMessage = "Failed to add food item: \(error.localizedDescription)"
+            isLoading = false
         }
     }
     
@@ -261,38 +260,34 @@ class FoodRepository: ObservableObject {
                 radiusInKm: radius
             )
             
-            DispatchQueue.main.async {
-                self.foodItems = firebaseItems.map { firebaseItem in
-                    var foodItem = firebaseItem.toFoodItem()
-                    // Calculate actual distance
-                    let userLocation = CLLocation(latitude: latitude, longitude: longitude)
-                    let itemLocation = CLLocation(latitude: firebaseItem.latitude, longitude: firebaseItem.longitude)
-                    let distance = userLocation.distance(from: itemLocation) / 1000 // Convert to km
-                    foodItem = FoodItem(
-                        id: foodItem.id,
-                        name: foodItem.name,
-                        category: foodItem.category,
-                        quantity: foodItem.quantity,
-                        expires: foodItem.expires,
-                        shareType: foodItem.shareType,
-                        location: foodItem.location,
-                        suggestion: foodItem.suggestion,
-                        uploader: foodItem.uploader,
-                        aiSuggestion: foodItem.aiSuggestion,
-                        aiRecipes: foodItem.aiRecipes,
-                        tags: foodItem.tags,
-                        price: foodItem.price,
-                        distance: String(format: "%.1fkm", distance)
-                    )
-                    return foodItem
-                }
-                self.isLoading = false
+            foodItems = firebaseItems.map { firebaseItem in
+                var foodItem = firebaseItem.toFoodItem()
+                // Calculate actual distance
+                let userLocation = CLLocation(latitude: latitude, longitude: longitude)
+                let itemLocation = CLLocation(latitude: firebaseItem.latitude, longitude: firebaseItem.longitude)
+                let distance = userLocation.distance(from: itemLocation) / 1000 // Convert to km
+                foodItem = FoodItem(
+                    id: foodItem.id,
+                    name: foodItem.name,
+                    category: foodItem.category,
+                    quantity: foodItem.quantity,
+                    expires: foodItem.expires,
+                    shareType: foodItem.shareType,
+                    location: foodItem.location,
+                    suggestion: foodItem.suggestion,
+                    uploader: foodItem.uploader,
+                    aiSuggestion: foodItem.aiSuggestion,
+                    aiRecipes: foodItem.aiRecipes,
+                    tags: foodItem.tags,
+                    price: foodItem.price,
+                    distance: String(format: "%.1fkm", distance)
+                )
+                return foodItem
             }
+            isLoading = false
         } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = "Failed to load food items: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            errorMessage = "Failed to load food items: \(error.localizedDescription)"
+            isLoading = false
         }
     }
     
@@ -304,15 +299,11 @@ class FoodRepository: ObservableObject {
         do {
             let firebaseItems = try await firebaseManager.getFoodItemsByShareType(shareType)
             
-            DispatchQueue.main.async {
-                self.foodItems = firebaseItems.map { $0.toFoodItem() }
-                self.isLoading = false
-            }
+            foodItems = firebaseItems.map { $0.toFoodItem() }
+            isLoading = false
         } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = "Failed to filter food items: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            errorMessage = "Failed to filter food items: \(error.localizedDescription)"
+            isLoading = false
         }
     }
     
