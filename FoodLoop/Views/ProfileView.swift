@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 class UserProfileModel: ObservableObject {
     @Published var name: String = "訪客"
@@ -7,56 +8,159 @@ class UserProfileModel: ObservableObject {
     @Published var email: String?
     @Published var photoURL: URL?
     @Published var memberSince: String = "2024年3月"
-    @Published var shareCount: Int = 24
-    @Published var receiveCount: Int = 18
-    @Published var isPremium: Bool = true
-    @Published var points: Int = 245
-    @Published var badges: [Badge] = [
-        Badge(name: "新手上路", icon: "star.fill", active: true),
-        Badge(name: "分享達人", icon: "gift.fill", active: true),
-        Badge(name: "綠色小尖兵", icon: "leaf.fill", active: false)
-    ]
-    @Published var uploads: [String] = ["蔬菜箱", "自製麵包"]
-    @Published var favorites: [String] = ["有機蘋果", "剩餘牛奶"]
-    @Published var challenges: [Challenge] = [
-        Challenge(
-            title: "Zero Waste Week",
-            titleZh: "Zero Waste Week",
-            subtitle: "Share 5 items this week",
-            subtitleZh: "分享5項食材",
-            progress: 3,
-            goal: 5,
-            color: .red.opacity(0.5)
-        ),
-        Challenge(
-            title: "分享達人挑戰",
-            titleZh: "分享達人挑戰",
-            subtitle: "Share 10 items",
-            subtitleZh: "分享10項食材",
-            progress: 8,
-            goal: 10,
-            color: .blue.opacity(0.5)
-        ),
-        Challenge(
-            title: "冰箱清潔週",
-            titleZh: "冰箱清潔週",
-            subtitle: "Clean your fridge 3 times",
-            subtitleZh: "整理3次家中冰箱",
-            progress: 1,
-            goal: 3,
-            color: .green.opacity(0.5)
-        ),
-        Challenge(
-            title: "環保小尖兵",
-            titleZh: "環保小尖兵",
-            subtitle: "Use eco containers 5 times",
-            subtitleZh: "使用環保容器分享5次",
-            progress: 2,
-            goal: 5,
-            color: .purple.opacity(0.5)
-        )
-    ]
-    // ...可擴充更多欄位
+    @Published var shareCount: Int = 0
+    @Published var receiveCount: Int = 0
+    @Published var isPremium: Bool = false
+    @Published var points: Int = 0
+    @Published var badges: [Badge] = []
+    @Published var uploads: [String] = []
+    @Published var favorites: [String] = []
+    @Published var challenges: [Challenge] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    
+    private let firebaseManager = FirebaseManager.shared
+    private var listener: ListenerRegistration?
+    
+    var currentUserID: String? {
+        return Auth.auth().currentUser?.uid
+    }
+    
+    init() {
+        setupAuthListener()
+    }
+    
+    deinit {
+        listener?.remove()
+    }
+    
+    // Set up authentication state listener
+    private func setupAuthListener() {
+        Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+            guard let self = self else { return }
+            
+            if let user = user {
+                self.setupUserListener(uid: user.uid)
+            } else {
+                self.resetToGuestMode()
+            }
+        }
+    }
+    
+    // Set up real-time listener for user data
+    private func setupUserListener(uid: String) {
+        listener?.remove() // Remove previous listener if any
+        
+        listener = firebaseManager.listenToUser(uid: uid) { [weak self] firebaseUser in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if let firebaseUser = firebaseUser {
+                    let userModel = firebaseUser.toUserProfileModel()
+                    self.name = userModel.name
+                    self.initials = userModel.initials
+                    self.email = userModel.email
+                    self.photoURL = userModel.photoURL
+                    self.memberSince = userModel.memberSince
+                    self.shareCount = userModel.shareCount
+                    self.receiveCount = userModel.receiveCount
+                    self.isPremium = userModel.isPremium
+                    self.points = userModel.points
+                    self.badges = userModel.badges
+                    self.uploads = userModel.uploads
+                    self.favorites = userModel.favorites
+                    self.challenges = userModel.challenges
+                    self.isLoading = false
+                } else {
+                    self.resetToGuestMode()
+                }
+            }
+        }
+    }
+    
+    // Create or update user in Firebase after authentication
+    func createOrUpdateUser() async {
+        guard let currentUser = Auth.auth().currentUser else {
+            await MainActor.run {
+                self.errorMessage = "No authenticated user found"
+            }
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let _ = try await firebaseManager.createOrUpdateUser(from: currentUser)
+            // User data will be updated automatically through the listener
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to sync user data: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+    
+    // Update user points
+    func addPoints(_ points: Int) async {
+        guard let uid = currentUserID else { return }
+        
+        do {
+            try await firebaseManager.updateUserPoints(uid: uid, points: points)
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to update points: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    // Update user stats
+    func updateStats(shareCount: Int? = nil, receiveCount: Int? = nil) async {
+        guard let uid = currentUserID else { return }
+        
+        do {
+            try await firebaseManager.updateUserStats(uid: uid, shareCount: shareCount, receiveCount: receiveCount)
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to update stats: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    // Reset to guest mode
+    private func resetToGuestMode() {
+        listener?.remove()
+        
+        name = "訪客"
+        initials = "V"
+        email = nil
+        photoURL = nil
+        memberSince = "未登入"
+        shareCount = 0
+        receiveCount = 0
+        isPremium = false
+        points = 0
+        badges = []
+        uploads = []
+        favorites = []
+        challenges = []
+        isLoading = false
+        errorMessage = nil
+    }
+    
+    // Sign out
+    func signOut() async {
+        do {
+            try Auth.auth().signOut()
+            await MainActor.run {
+                self.resetToGuestMode()
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Failed to sign out: \(error.localizedDescription)"
+            }
+        }
+    }
 }
 
 struct Badge: Identifiable, Hashable {

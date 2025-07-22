@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - users can read and write their own data
+    match /users/{userId} {
+      // Allow read access to any authenticated user (for user profiles in food items)
+      allow read: if request.auth != null;
+      
+      // Allow write access only to the user's own document
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Ensure required fields are present and valid
+      allow create: if request.auth != null 
+        && request.auth.uid == userId
+        && validateUserData(request.resource.data);
+      
+      // Allow updates but prevent changing uid
+      allow update: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && validateUserData(request.resource.data);
+    }
+    
+    // Food items collection - public read, authenticated write
+    match /food_items/{foodId} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null && resource.data.is_active == true;
+      
+      // Allow creation only by authenticated users
+      allow create: if request.auth != null 
+        && validateFoodItemData(request.resource.data)
+        && request.resource.data.uploader_id == request.auth.uid;
+      
+      // Allow updates only by the uploader or admin
+      allow update: if request.auth != null 
+        && (resource.data.uploader_id == request.auth.uid || hasAdminRole())
+        && validateFoodItemData(request.resource.data);
+      
+      // Allow deletion only by the uploader or admin (soft delete by setting is_active to false)
+      allow delete: if request.auth != null 
+        && (resource.data.uploader_id == request.auth.uid || hasAdminRole());
+    }
+    
+    // Admin collection - only for admin users
+    match /admin/{document=**} {
+      allow read, write: if hasAdminRole();
+    }
+    
+    // Analytics collection - read only for authenticated users
+    match /analytics/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if hasAdminRole();
+    }
+    
+    // Helper functions
+    function validateUserData(userData) {
+      return userData.keys().hasAll(['uid', 'name', 'email', 'created_at', 'updated_at', 'is_active'])
+        && userData.uid is string
+        && userData.name is string
+        && userData.email is string
+        && userData.share_count is number
+        && userData.receive_count is number
+        && userData.points is number
+        && userData.is_premium is bool
+        && userData.is_active is bool
+        && userData.created_at is timestamp
+        && userData.updated_at is timestamp;
+    }
+    
+    function validateFoodItemData(foodData) {
+      return foodData.keys().hasAll(['name', 'category', 'uploader_id', 'share_type', 'expiry_date', 'created_at', 'updated_at', 'is_active'])
+        && foodData.name is string
+        && foodData.category is string
+        && foodData.uploader_id is string
+        && foodData.share_type in ['免費', '優惠', '捐贈']
+        && foodData.expiry_date is timestamp
+        && foodData.latitude is number
+        && foodData.longitude is number
+        && foodData.geohash is string
+        && foodData.is_active is bool
+        && foodData.created_at is timestamp
+        && foodData.updated_at is timestamp
+        && foodData.latitude >= -90 && foodData.latitude <= 90
+        && foodData.longitude >= -180 && foodData.longitude <= 180;
+    }
+    
+    function hasAdminRole() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.uid));
+    }
+    
+    // Rate limiting: prevent spam
+    function isNotSpamming() {
+      return request.time > resource.data.created_at + duration.value(1, 'm');
+    }
+  }
+}

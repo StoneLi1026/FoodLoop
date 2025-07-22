@@ -65,15 +65,14 @@ struct LoginView: View {
                     print("Firebase 登入失敗：\(error.localizedDescription)")
                     return
                 }
-                // 初始化 userProfile
-                let displayName = result?.user.displayName ?? "使用者"
-                let email = result?.user.email
-                let photoURL = result?.user.photoURL
-                userProfile.name = displayName
-                userProfile.initials = String(displayName.prefix(1))
-                userProfile.email = email
-                userProfile.photoURL = photoURL
+                
+                print("Firebase 登入成功！")
                 isSignedIn = true
+                
+                // Create or update user in Firestore
+                Task {
+                    await userProfile.createOrUpdateUser()
+                }
             }
         }
     }

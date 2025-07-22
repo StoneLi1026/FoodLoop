@@ -1,8 +1,11 @@
 import SwiftUI
 import PhotosUI
+import CoreLocation
+import FirebaseAuth
 
 struct UploadView: View {
     @EnvironmentObject var foodRepo: FoodRepository
+    @EnvironmentObject var userProfile: UserProfileModel
     @State private var category = "蔬菜"
     @State private var quantity = ""
     @State private var expires = Date()
@@ -15,6 +18,9 @@ struct UploadView: View {
     @State private var showPhotoDeniedAlert = false
     @State private var suggestion = ""
     @State private var selectedTags: [String] = []
+    @State private var locationManager = LocationManager()
+    @State private var isUploading = false
+    @State private var uploadSuccess = false
     
     let categories = ["蔬菜", "水果", "烘焙", "乳製品", "冷凍", "其他"]
     let shareTypes = ["免費", "優惠", "捐贈"]
@@ -211,45 +217,156 @@ struct UploadView: View {
                     
                     // 發佈按鈕
                     Button(action: {
-                        // 模擬上傳，實際應用可串接登入者資料
-                        let newItem = FoodItem(
-                            id: UUID(),
-                            name: category + "分享", // 可改為自訂名稱
-                            category: category,
-                            quantity: quantity.isEmpty ? "1份" : quantity,
-                            expires: expires,
-                            shareType: shareTypes[shareType],
-                            location: location.isEmpty ? "社區中心" : location,
-                            suggestion: suggestion.isEmpty ? "歡迎索取！" : suggestion,
-                            uploader: UploaderInfo(nickname: "你", rating: 5.0, shares: 1),
-                            aiSuggestion: "冷藏，24小時內食用",
-                            aiRecipes: [],
-                            tags: selectedTags.isEmpty ? [category] : selectedTags,
-                            price: shareTypes[shareType] == "免費" ? nil : "$1",
-                            distance: "0.5km"
-                        )
-                        foodRepo.addFoodItem(newItem)
-                        // 清空表單
-                        category = "蔬菜"
-                        quantity = ""
-                        expires = Date()
-                        shareType = 0
-                        location = ""
-                        suggestion = ""
-                        selectedTags = []
+                        uploadFoodItem()
                     }) {
-                        Text("發佈食物項目")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(.systemGreen))
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                        HStack {
+                            if isUploading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                                Text("發佈中...")
+                            } else {
+                                Text("發佈食物項目")
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(isUploading ? Color.gray : Color(.systemGreen))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(isUploading)
+                    
+                    if let errorMessage = foodRepo.errorMessage {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.caption)
                     }
                 }
                 .padding()
             }
             .navigationTitle("分享食物")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                locationManager.requestPermission()
+            }
+            .alert("上傳成功", isPresented: $uploadSuccess) {
+                Button("確定") {
+                    clearForm()
+                }
+            } message: {
+                Text("您的食物已成功分享！")
+            }
         }
+    }
+    
+    private func uploadFoodItem() {
+        guard let currentUser = Auth.auth().currentUser else {
+            foodRepo.errorMessage = "請先登入"
+            return
+        }
+        
+        guard !category.isEmpty else {
+            foodRepo.errorMessage = "請選擇食物分類"
+            return
+        }
+        
+        isUploading = true
+        
+        Task {
+            // Get current location
+            var latitude: Double = 25.0330 // Default to Taipei if no location
+            var longitude: Double = 121.5654
+            
+            if let currentLocation = locationManager.currentLocation {
+                latitude = currentLocation.coordinate.latitude
+                longitude = currentLocation.coordinate.longitude
+            }
+            
+            // Create food item
+            let newItem = FoodItem(
+                id: UUID(),
+                name: category + "分享",
+                category: category,
+                quantity: quantity.isEmpty ? "1份" : quantity,
+                expires: expires,
+                shareType: shareTypes[shareType],
+                location: location.isEmpty ? "用戶位置" : location,
+                suggestion: suggestion.isEmpty ? "歡迎索取！" : suggestion,
+                uploader: UploaderInfo(
+                    nickname: userProfile.name,
+                    rating: 5.0, // Default rating for new users
+                    shares: userProfile.shareCount
+                ),
+                aiSuggestion: generateAISuggestion(category: category, expires: expires),
+                aiRecipes: generateAIRecipes(category: category),
+                tags: selectedTags.isEmpty ? [category] : selectedTags,
+                price: shareTypes[shareType] == "免費" ? nil : "$\(Int.random(in: 1...3))",
+                distance: "計算中"
+            )
+            
+            // Upload to Firebase
+            await foodRepo.addFoodItem(
+                newItem,
+                latitude: latitude,
+                longitude: longitude,
+                uploaderID: currentUser.uid
+            )
+            
+            await MainActor.run {
+                isUploading = false
+                if foodRepo.errorMessage == nil {
+                    uploadSuccess = true
+                }
+            }
+        }
+    }
+    
+    private func clearForm() {
+        category = "蔬菜"
+        quantity = ""
+        expires = Date()
+        shareType = 0
+        location = ""
+        suggestion = ""
+        selectedTags = []
+        selectedImages = []
+        selectedPhotos = []
+    }
+    
+    private func generateAISuggestion(category: String, expires: Date) -> String {
+        let daysUntilExpiry = Calendar.current.dateComponents([.day], from: Date(), to: expires).day ?? 0
+        
+        switch daysUntilExpiry {
+        case 0:
+            return "今日到期，請盡快食用"
+        case 1:
+            return "明日到期，建議冷藏保存"
+        case 2...3:
+            return "冷藏保存，3天內食用完畢"
+        default:
+            return category.contains("蔬菜") ? "冷藏保存，保持新鮮" : "依照包裝指示保存"
+        }
+    }
+    
+    private func generateAIRecipes(category: String) -> [RecipeCard] {
+        let recipesByCategory: [String: [RecipeCard]] = [
+            "蔬菜": [
+                RecipeCard(emoji: "🥗", title: "蔬菜沙拉", desc: "簡單拌一拌，健康又美味！"),
+                RecipeCard(emoji: "🍲", title: "蔬菜湯", desc: "將蔬菜煮成湯，營養滿分。")
+            ],
+            "水果": [
+                RecipeCard(emoji: "🥤", title: "新鮮果汁", desc: "打成果汁，維生素滿滿。"),
+                RecipeCard(emoji: "🍮", title: "水果優格", desc: "搭配優格，健康點心。")
+            ],
+            "烘焙": [
+                RecipeCard(emoji: "🥪", title: "三明治", desc: "夾入蔬菜與蛋，快速早餐。"),
+                RecipeCard(emoji: "🍮", title: "麵包布丁", desc: "剩麵包也能變甜點。")
+            ]
+        ]
+        
+        return recipesByCategory[category] ?? [
+            RecipeCard(emoji: "🍳", title: "簡易快炒", desc: "快速翻炒，美味上桌。")
+        ]
     }
 }

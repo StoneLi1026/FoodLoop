@@ -1,4 +1,7 @@
 import SwiftUI
+import FirebaseFirestore
+import CoreLocation
+import GeoFireUtils
 
 // 食物資料模型
 struct FoodItem: Identifiable {
@@ -173,12 +176,149 @@ struct BadgeView: View {
 // 集中管理食物資料的 Repository
 class FoodRepository: ObservableObject {
     @Published var foodItems: [FoodItem] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String?
+    
+    private let firebaseManager = FirebaseManager.shared
+    private var listener: ListenerRegistration?
     
     init() {
-        foodItems = FoodRepository.generateMockData(count: 50)
+        setupRealtimeListener()
     }
     
+    deinit {
+        listener?.remove()
+    }
+    
+    // Set up real-time listener for food items
+    private func setupRealtimeListener() {
+        listener = firebaseManager.listenToFoodItems { [weak self] firebaseItems in
+            DispatchQueue.main.async {
+                self?.foodItems = firebaseItems.map { $0.toFoodItem() }
+                self?.isLoading = false
+            }
+        }
+    }
+    
+    // Add new food item to Firebase
+    func addFoodItem(_ item: FoodItem, latitude: Double, longitude: Double, uploaderID: String) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Create geohash for location-based queries
+            let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+            let geohash = GFUtils.geoHash(forLocation: coordinate)
+            
+            let firebaseItem = FirebaseFoodItem(
+                id: nil,
+                name: item.name,
+                category: item.category,
+                quantity: item.quantity,
+                expiryDate: item.expires,
+                shareType: ShareType(rawValue: item.shareType) ?? .free,
+                location: item.location,
+                suggestion: item.suggestion,
+                uploaderID: uploaderID,
+                uploaderNickname: item.uploader.nickname,
+                uploaderRating: item.uploader.rating,
+                uploaderShares: item.uploader.shares,
+                aiSuggestion: item.aiSuggestion,
+                aiRecipes: item.aiRecipes.map { FirebaseRecipeCard(emoji: $0.emoji, title: $0.title, desc: $0.desc) },
+                tags: item.tags,
+                price: item.price,
+                latitude: latitude,
+                longitude: longitude,
+                geohash: geohash,
+                createdAt: Date(),
+                updatedAt: Date(),
+                isActive: true
+            )
+            
+            let _ = try await firebaseManager.createFoodItem(firebaseItem)
+            
+            // Update user stats
+            try await firebaseManager.updateUserStats(uid: uploaderID, shareCount: 1)
+            try await firebaseManager.updateUserPoints(uid: uploaderID, points: 10)
+            
+        } catch {
+            DispatchQueue.main.async {
+                self.errorMessage = "Failed to add food item: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+    
+    // Load food items near user location
+    func loadFoodItemsNearLocation(latitude: Double, longitude: Double, radius: Double = 10.0) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let firebaseItems = try await firebaseManager.getFoodItemsNearLocation(
+                latitude: latitude,
+                longitude: longitude,
+                radiusInKm: radius
+            )
+            
+            DispatchQueue.main.async {
+                self.foodItems = firebaseItems.map { firebaseItem in
+                    var foodItem = firebaseItem.toFoodItem()
+                    // Calculate actual distance
+                    let userLocation = CLLocation(latitude: latitude, longitude: longitude)
+                    let itemLocation = CLLocation(latitude: firebaseItem.latitude, longitude: firebaseItem.longitude)
+                    let distance = userLocation.distance(from: itemLocation) / 1000 // Convert to km
+                    foodItem = FoodItem(
+                        id: foodItem.id,
+                        name: foodItem.name,
+                        category: foodItem.category,
+                        quantity: foodItem.quantity,
+                        expires: foodItem.expires,
+                        shareType: foodItem.shareType,
+                        location: foodItem.location,
+                        suggestion: foodItem.suggestion,
+                        uploader: foodItem.uploader,
+                        aiSuggestion: foodItem.aiSuggestion,
+                        aiRecipes: foodItem.aiRecipes,
+                        tags: foodItem.tags,
+                        price: foodItem.price,
+                        distance: String(format: "%.1fkm", distance)
+                    )
+                    return foodItem
+                }
+                self.isLoading = false
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.errorMessage = "Failed to load food items: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+    
+    // Filter by share type
+    func loadFoodItemsByShareType(_ shareType: ShareType) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let firebaseItems = try await firebaseManager.getFoodItemsByShareType(shareType)
+            
+            DispatchQueue.main.async {
+                self.foodItems = firebaseItems.map { $0.toFoodItem() }
+                self.isLoading = false
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.errorMessage = "Failed to filter food items: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+    
+    // Legacy method for backward compatibility - now uses Firebase
     func addFoodItem(_ item: FoodItem) {
+        // This method now requires additional parameters, so we'll use mock data for now
         foodItems.insert(item, at: 0)
     }
     
