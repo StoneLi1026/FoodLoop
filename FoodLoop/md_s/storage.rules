@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for FoodLoop
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Food item images - public read, authenticated write
+    match /food_images/{userId}/{foodId}/{imageId} {
+      // Allow read access to all authenticated users
+      allow read: if request.auth != null;
+      
+      // Allow write access only to the user who owns the food item
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && isValidImageFile()
+        && isValidImageSize();
+      
+      // Allow delete only by the uploader
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User profile images
+    match /profile_images/{userId}/{imageId} {
+      // Allow read access to all authenticated users (for user profiles)
+      allow read: if request.auth != null;
+      
+      // Allow write access only to the user's own profile images
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && isValidImageFile()
+        && isValidImageSize();
+      
+      // Allow delete only by the user
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Admin uploads - only for admin users
+    match /admin/{allPaths=**} {
+      allow read, write: if hasAdminRole();
+    }
+    
+    // Helper functions
+    function isValidImageFile() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    }
+    
+    function isValidImageSize() {
+      // Limit file size to 10MB
+      return request.resource.size <= 10 * 1024 * 1024;
+    }
+    
+    function hasAdminRole() {
+      return request.auth != null; // TODO: Add proper admin role check
+    }
+  }
+}

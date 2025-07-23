@@ -65,7 +65,11 @@ service cloud.firestore {
         && userData.is_premium is bool
         && userData.is_active is bool
         && userData.created_at is timestamp
-        && userData.updated_at is timestamp;
+        && userData.updated_at is timestamp
+        && (userData.badges is list || !userData.keys().hasAny(['badges']))
+        && (userData.challenges is list || !userData.keys().hasAny(['challenges']))
+        && (userData.uploads is list || !userData.keys().hasAny(['uploads']))
+        && (userData.favorites is list || !userData.keys().hasAny(['favorites']));
     }
     
     function validateFoodItemData(foodData) {
@@ -82,7 +86,10 @@ service cloud.firestore {
         && foodData.created_at is timestamp
         && foodData.updated_at is timestamp
         && foodData.latitude >= -90 && foodData.latitude <= 90
-        && foodData.longitude >= -180 && foodData.longitude <= 180;
+        && foodData.longitude >= -180 && foodData.longitude <= 180
+        && (foodData.image_urls is list || !foodData.keys().hasAny(['image_urls']))
+        && (foodData.tags is list || !foodData.keys().hasAny(['tags']))
+        && (foodData.ai_recipes is list || !foodData.keys().hasAny(['ai_recipes']));
     }
     
     function hasAdminRole() {
