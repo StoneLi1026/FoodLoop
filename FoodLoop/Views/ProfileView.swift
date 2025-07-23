@@ -378,17 +378,7 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $showUploads) {
-            VStack {
-                Text("我的上傳")
-                    .font(.title2)
-                    .padding()
-                List(user.uploads, id: \.self) { upload in
-                    Text(upload)
-                }
-                Button("關閉") { showUploads = false }
-                    .padding()
-            }
-            .presentationDetents([.medium, .large])
+            MyUploadsView(user: user, isPresented: $showUploads)
         }
         .sheet(isPresented: $showFavorites) {
             VStack {
@@ -443,5 +433,130 @@ struct ActivityRow: View {
             .padding(.vertical, 10)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - My Uploads View
+struct MyUploadsView: View {
+    @ObservedObject var user: UserProfileModel
+    @Binding var isPresented: Bool
+    @State private var userFoodItems: [FoodItem] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    
+    private let firebaseManager = FirebaseManager.shared
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                if isLoading {
+                    ProgressView("載入中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if userFoodItems.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 48))
+                            .foregroundColor(.gray)
+                        Text("尚未上傳任何食物")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("開始分享食物來幫助社區！")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(userFoodItems) { item in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(item.name)
+                                            .font(.headline)
+                                        Text(item.category)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing) {
+                                        Text(item.price ?? "免費")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.green)
+                                        Text(item.expires.toRelativeExpireString())
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                // Tags
+                                if !item.tags.isEmpty {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 6) {
+                                            ForEach(item.tags, id: \.self) { tag in
+                                                Text(tag)
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color(.systemGreen).opacity(0.1))
+                                                    .foregroundColor(.green)
+                                                    .cornerRadius(8)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding()
+                }
+            }
+            .navigationTitle("我的上傳")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("關閉") {
+                        isPresented = false
+                    }
+                }
+            }
+            .onAppear {
+                loadUserUploads()
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+    
+    private func loadUserUploads() {
+        guard let currentUserID = user.currentUserID else {
+            errorMessage = "用戶未登入"
+            isLoading = false
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let firebaseItems = try await firebaseManager.getFoodItemsByUser(uid: currentUserID)
+                
+                await MainActor.run {
+                    self.userFoodItems = firebaseItems.map { $0.toFoodItem() }
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "載入失敗: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
     }
 }

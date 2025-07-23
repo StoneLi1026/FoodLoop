@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-07-23
+
+### Added
+- **ChallengeManager System**: Complete challenge tracking and badge conversion system
+- **Enhanced Food Upload**: Food name and price input fields with proper Firebase sync  
+- **Photo Management**: Multi-image upload with swipe navigation and zoom functionality
+- **My Uploads Feature**: ProfileView now shows user's actual uploaded food items
+- **Food Tags Display**: Tags shown above uploader info in FoodDetailView
+- **Local Storage**: Challenges cached locally for improved performance (6-hour sync)
+- **Keyboard Management**: Proper keyboard dismissal in text fields
+- **Image Viewer**: Full-screen photo viewer with pinch-to-zoom and swipe navigation
+
+### Changed
+- **UploadView**: Added food name/price fields, enhanced with challenge progression triggers
+- **HomeView**: Now integrates with ChallengeManager for dynamic challenge display  
+- **FoodDetailView**: Enhanced with photo gallery, zoom functionality, and food tags
+- **ProfileView**: "My Uploads" now shows real food items instead of placeholder strings
+- **Challenge System**: Progress starts at 0 for new users, increments on actions, converts to badges when completed
+
+### Fixed
+- **Data Synchronization**: Proper sync between UploadView, FoodDetailView, and ExploreView
+- **User Data Display**: Correct uploader name, photo, and ratings in FoodDetailView
+- **Challenge Progress**: Real-time tracking with local caching for performance
+
+### Technical
+- **ChallengeManager.swift**: New centralized challenge management system
+- **Local Caching**: UserDefaults-based caching for challenges with smart sync
+- **ImageViewerView**: Custom zoom and navigation component  
+- **MyUploadsView**: New view component for user's uploaded items
+- **Challenge Types**: Enum-based system for different challenge categories
+
+## [0.1.1] - 2025-07-22
+
 ### Added
 - Complete Firebase backend integration replacing mock data
 - FirebaseModels.swift with comprehensive data structures

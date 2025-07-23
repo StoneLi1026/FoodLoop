@@ -18,6 +18,7 @@ struct FoodItem: Identifiable {
     let aiRecipes: [RecipeCard]
     let tags: [String]
     let price: String?
+    let imageURLs: [String]
     let distance: String
 }
 
@@ -228,6 +229,7 @@ class FoodRepository: ObservableObject {
                 aiRecipes: item.aiRecipes.map { FirebaseRecipeCard(emoji: $0.emoji, title: $0.title, desc: $0.desc) },
                 tags: item.tags,
                 price: item.price,
+                imageURLs: item.imageURLs,
                 latitude: latitude,
                 longitude: longitude,
                 geohash: geohash,
@@ -280,6 +282,7 @@ class FoodRepository: ObservableObject {
                     aiRecipes: foodItem.aiRecipes,
                     tags: foodItem.tags,
                     price: foodItem.price,
+                    imageURLs: foodItem.imageURLs,
                     distance: String(format: "%.1fkm", distance)
                 )
                 return foodItem
@@ -362,6 +365,7 @@ class FoodRepository: ObservableObject {
                 aiRecipes: aiRecipes,
                 tags: tags,
                 price: price,
+                imageURLs: [], // Mock data - no images
                 distance: distance
             ))
         }

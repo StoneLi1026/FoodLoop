@@ -3,8 +3,8 @@ import SwiftUI
 struct FoodDetailView: View {
     let foodItem: FoodItem
     @State private var showChat = false
-    // 模擬圖片（未來可用 foodItem.photoURL）
-    var foodImage: Image? = nil
+    @State private var selectedImageIndex = 0
+    @State private var showImageViewer = false
     
     // 根據 foodItem 給出 AI 建議
     var aiSuggestion: (storage: String, recipes: String) {
@@ -41,18 +41,40 @@ struct FoodDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // 食物照片
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemGreen).opacity(0.12))
-                    if let img = foodImage {
-                        img
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 160)
-                            .clipped()
-                            .cornerRadius(20)
-                    } else {
+                // 食物照片 - 支援多張圖片滑動
+                if !foodItem.imageURLs.isEmpty {
+                    TabView(selection: $selectedImageIndex) {
+                        ForEach(Array(foodItem.imageURLs.enumerated()), id: \.offset) { index, imageURL in
+                            AsyncImage(url: URL(string: imageURL)) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 180)
+                                    .clipped()
+                                    .cornerRadius(20)
+                                    .onTapGesture {
+                                        selectedImageIndex = index
+                                        showImageViewer = true
+                                    }
+                            } placeholder: {
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 180)
+                                    .overlay(
+                                        ProgressView()
+                                    )
+                            }
+                            .tag(index)
+                        }
+                    }
+                    .frame(height: 180)
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
+                    .padding(.horizontal)
+                } else {
+                    // 預設圖片當沒有上傳照片時
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color(.systemGreen).opacity(0.12))
                         VStack {
                             Image(systemName: "leaf")
                                 .font(.system(size: 40))
@@ -63,9 +85,9 @@ struct FoodDetailView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 180)
                     }
+                    .frame(height: 180)
+                    .padding(.horizontal)
                 }
-                .frame(height: 180)
-                .padding(.horizontal)
                 
                 // 食物資訊
                 VStack(alignment: .leading, spacing: 8) {
@@ -120,6 +142,30 @@ struct FoodDetailView: View {
                     .cornerRadius(16)
                 }
                 .padding(.horizontal)
+                
+                // 食物標籤
+                if !foodItem.tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("標籤")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(foodItem.tags, id: \.self) { tag in
+                                    Text(tag)
+                                        .font(.caption)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color(.systemGreen).opacity(0.15))
+                                        .foregroundColor(Color(.systemGreen))
+                                        .cornerRadius(12)
+                                }
+                            }
+                            .padding(.horizontal, 1)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
                 
                 // 分享者資訊
                 VStack(alignment: .leading, spacing: 12) {
@@ -197,6 +243,13 @@ struct FoodDetailView: View {
         .navigationDestination(isPresented: $showChat) {
             ChatView()
         }
+        .fullScreenCover(isPresented: $showImageViewer) {
+            ImageViewerView(
+                imageURLs: foodItem.imageURLs,
+                selectedIndex: $selectedImageIndex,
+                isPresented: $showImageViewer
+            )
+        }
     }
 }
 
@@ -216,5 +269,100 @@ struct SuggestionCardView: View {
         .background(Color(.systemGray6))
         .cornerRadius(16)
         .shadow(color: Color(.black).opacity(0.03), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Image Viewer with Zoom
+struct ImageViewerView: View {
+    let imageURLs: [String]
+    @Binding var selectedIndex: Int
+    @Binding var isPresented: Bool
+    @State private var scale: CGFloat = 1.0
+    @State private var offset: CGSize = .zero
+    @State private var previousOffset: CGSize = .zero
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                if !imageURLs.isEmpty {
+                    TabView(selection: $selectedIndex) {
+                        ForEach(Array(imageURLs.enumerated()), id: \.offset) { index, imageURL in
+                            AsyncImage(url: URL(string: imageURL)) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .scaleEffect(scale)
+                                    .offset(offset)
+                                    .gesture(
+                                        SimultaneousGesture(
+                                            MagnificationGesture()
+                                                .onChanged { value in
+                                                    scale = value
+                                                }
+                                                .onEnded { value in
+                                                    if scale < 1.0 {
+                                                        scale = 1.0
+                                                        offset = .zero
+                                                    } else if scale > 4.0 {
+                                                        scale = 4.0
+                                                    }
+                                                },
+                                            DragGesture()
+                                                .onChanged { value in
+                                                    if scale > 1.0 {
+                                                        offset = CGSize(
+                                                            width: previousOffset.width + value.translation.width,
+                                                            height: previousOffset.height + value.translation.height
+                                                        )
+                                                    }
+                                                }
+                                                .onEnded { value in
+                                                    previousOffset = offset
+                                                }
+                                        )
+                                    )
+                                    .onTapGesture(count: 2) {
+                                        withAnimation(.spring()) {
+                                            if scale == 1.0 {
+                                                scale = 2.0
+                                            } else {
+                                                scale = 1.0
+                                                offset = .zero
+                                                previousOffset = .zero
+                                            }
+                                        }
+                                    }
+                            } placeholder: {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                            .tag(index)
+                        }
+                    }
+                    .tabViewStyle(PageTabViewStyle())
+                    .onChange(of: selectedIndex) { oldValue, newValue in
+                        // Reset zoom when switching images
+                        scale = 1.0
+                        offset = .zero
+                        previousOffset = .zero
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("關閉") {
+                        isPresented = false
+                    }
+                    .foregroundColor(.white)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Text("\(selectedIndex + 1) / \(imageURLs.count)")
+                        .foregroundColor(.white)
+                }
+            }
+        }
     }
 }

@@ -5,6 +5,7 @@ struct HomeView: View {
     @State private var showExplore = false
     @State private var showGreenReport = false
     @EnvironmentObject var user: UserProfileModel
+    @StateObject private var challengeManager = ChallengeManager.shared
     
     var body: some View {
         NavigationStack {
@@ -83,7 +84,7 @@ struct HomeView: View {
                             }
                             .padding(.top, 8)
                             HStack(spacing: 16) {
-                                StatCardView(title: "已分享", value: "24")
+                                StatCardView(title: "已分享", value: "\(user.shareCount)")
                                 StatCardView(title: "減少浪費", value: "8.5kg")
                             }
                             Button(action: { showGreenReport = true }) {
@@ -116,75 +117,25 @@ struct HomeView: View {
                             }
                             .padding(.bottom, 8)
                             
-                            // 挑戰項目列表
+                            // 挑戰項目列表 - 從 ChallengeManager 動態載入
                             VStack(spacing: 12) {
-                                // Zero Waste Week
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Zero Waste Week")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("Share 5 items this week")
-                                        .foregroundColor(.white)
-                                    ProgressBarView(progress: 0.6)
-                                        .frame(height: 10)
-                                    Text("3/5 completed")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.9))
+                                ForEach(challengeManager.activeChallenges) { challenge in
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text(challenge.titleZh.isEmpty ? challenge.title : challenge.titleZh)
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        Text(challenge.subtitleZh.isEmpty ? challenge.subtitle : challenge.subtitleZh)
+                                            .foregroundColor(.white)
+                                        ProgressBarView(progress: CGFloat(challenge.progress) / CGFloat(challenge.goal))
+                                            .frame(height: 10)
+                                        Text("\(challenge.progress)/\(challenge.goal) completed")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.9))
+                                    }
+                                    .padding()
+                                    .background(challenge.color.opacity(0.5))
+                                    .cornerRadius(18)
                                 }
-                                .padding()
-                                .background(Color.red.opacity(0.5))
-                                .cornerRadius(18)
-                                
-                                // 分享達人挑戰
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("分享達人挑戰")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("分享10項食材")
-                                        .foregroundColor(.white)
-                                    ProgressBarView(progress: 0.8)
-                                        .frame(height: 10)
-                                    Text("8/10 completed")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                .padding()
-                                .background(Color.blue.opacity(0.5))
-                                .cornerRadius(18)
-                                
-                                // 冰箱清潔週
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("冰箱清潔週")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("整理3次家中冰箱")
-                                        .foregroundColor(.white)
-                                    ProgressBarView(progress: 0.33)
-                                        .frame(height: 10)
-                                    Text("1/3 completed")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                .padding()
-                                .background(Color.green.opacity(0.5))
-                                .cornerRadius(18)
-                                
-                                // 環保小尖兵
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("環保小尖兵")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    Text("使用環保容器分享5次")
-                                        .foregroundColor(.white)
-                                    ProgressBarView(progress: 0.4)
-                                        .frame(height: 10)
-                                    Text("2/5 completed")
-                                        .font(.caption)
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                                .padding()
-                                .background(Color.purple.opacity(0.5))
-                                .cornerRadius(18)
                             }
                         }
                         .padding(.horizontal)
@@ -203,6 +154,14 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showGreenReport) {
                 GreenReportView()
+            }
+            .onAppear {
+                // Sync challenges with ChallengeManager
+                challengeManager.syncChallengesWithUser(user)
+            }
+            .onChange(of: user.challenges) { oldValue, newValue in
+                // Update challenges when user data changes
+                challengeManager.syncChallengesWithUser(user)
             }
         }
     }

@@ -23,6 +23,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
     let aiRecipes: [FirebaseRecipeCard]
     let tags: [String]
     let price: String?
+    let imageURLs: [String]
     let latitude: Double
     let longitude: Double
     let geohash: String
@@ -47,6 +48,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
         case aiRecipes = "ai_recipes"
         case tags
         case price
+        case imageURLs = "image_urls"
         case latitude
         case longitude
         case geohash
@@ -78,6 +80,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
             aiRecipes: aiRecipes.map { $0.toRecipeCard() },
             tags: tags,
             price: price,
+            imageURLs: imageURLs,
             distance: distance
         )
     }

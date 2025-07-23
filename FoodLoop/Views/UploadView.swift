@@ -6,6 +6,9 @@ import FirebaseAuth
 struct UploadView: View {
     @EnvironmentObject var foodRepo: FoodRepository
     @EnvironmentObject var userProfile: UserProfileModel
+    @StateObject private var challengeManager = ChallengeManager.shared
+    @State private var foodName = ""
+    @State private var foodPrice = ""
     @State private var category = "蔬菜"
     @State private var quantity = ""
     @State private var expires = Date()
@@ -111,6 +114,17 @@ struct UploadView: View {
                         Text("請至設定開啟相簿權限，以便上傳食物圖片")
                     }
                     
+                    // 食物名稱
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("食物名稱")
+                            .font(.headline)
+                        TextField("輸入食物名稱", text: $foodName)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit {
+                                hideKeyboard()
+                            }
+                    }
+                    
                     // 分類
                     VStack(alignment: .leading, spacing: 4) {
                         Text("分類")
@@ -121,20 +135,35 @@ struct UploadView: View {
                         .pickerStyle(.menu)
                     }
                     
-                    // 數量與到期日
+                    // 數量、價格與到期日
                     HStack {
                         VStack(alignment: .leading) {
                             Text("數量")
                                 .font(.headline)
                             TextField("例如 2公斤", text: $quantity)
                                 .textFieldStyle(.roundedBorder)
+                                .onSubmit {
+                                    hideKeyboard()
+                                }
                         }
                         VStack(alignment: .leading) {
-                            Text("到期日")
+                            Text("價格")
                                 .font(.headline)
-                            DatePicker("", selection: $expires, in: Date()..., displayedComponents: .date)
-                                .labelsHidden()
+                            TextField("價格 (可選)", text: $foodPrice)
+                                .textFieldStyle(.roundedBorder)
+                                .keyboardType(.decimalPad)
+                                .onSubmit {
+                                    hideKeyboard()
+                                }
                         }
+                    }
+                    
+                    // 到期日
+                    VStack(alignment: .leading) {
+                        Text("到期日")
+                            .font(.headline)
+                        DatePicker("", selection: $expires, in: Date()..., displayedComponents: .date)
+                            .labelsHidden()
                     }
                     
                     // 分享類型
@@ -161,6 +190,9 @@ struct UploadView: View {
                             .font(.headline)
                         TextField("輸入地址或點擊地圖選取", text: $location)
                             .textFieldStyle(.roundedBorder)
+                            .onSubmit {
+                                hideKeyboard()
+                            }
                         Button(action: { showMap = true }) {
                             HStack {
                                 Image(systemName: "mappin.and.ellipse")
@@ -247,6 +279,9 @@ struct UploadView: View {
             }
             .navigationTitle("分享食物")
             .navigationBarTitleDisplayMode(.inline)
+            .onTapGesture {
+                hideKeyboard()
+            }
             .onAppear {
                 locationManager.requestPermission()
             }
@@ -260,9 +295,18 @@ struct UploadView: View {
         }
     }
     
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
     private func uploadFoodItem() {
         guard let currentUser = Auth.auth().currentUser else {
             foodRepo.errorMessage = "請先登入"
+            return
+        }
+        
+        guard !foodName.isEmpty else {
+            foodRepo.errorMessage = "請輸入食物名稱"
             return
         }
         
@@ -284,9 +328,12 @@ struct UploadView: View {
             }
             
             // Create food item
+            let priceString = foodPrice.isEmpty ? nil : "$\(foodPrice)"
+            let actualPrice = shareTypes[shareType] == "免費" ? nil : priceString
+            
             let newItem = FoodItem(
                 id: UUID(),
-                name: category + "分享",
+                name: foodName,
                 category: category,
                 quantity: quantity.isEmpty ? "1份" : quantity,
                 expires: expires,
@@ -301,7 +348,8 @@ struct UploadView: View {
                 aiSuggestion: generateAISuggestion(category: category, expires: expires),
                 aiRecipes: generateAIRecipes(category: category),
                 tags: selectedTags.isEmpty ? [category] : selectedTags,
-                price: shareTypes[shareType] == "免費" ? nil : "$\(Int.random(in: 1...3))",
+                price: actualPrice,
+                imageURLs: [], // Will be updated after photo upload
                 distance: "計算中"
             )
             
@@ -317,12 +365,23 @@ struct UploadView: View {
                 isUploading = false
                 if foodRepo.errorMessage == nil {
                     uploadSuccess = true
+                    
+                    // Trigger challenge progress
+                    Task {
+                        let useEcoContainer = selectedTags.contains("環保") || selectedTags.contains("自製")
+                        await challengeManager.onFoodUpload(
+                            userID: currentUser.uid, 
+                            useEcoContainer: useEcoContainer
+                        )
+                    }
                 }
             }
         }
     }
     
     private func clearForm() {
+        foodName = ""
+        foodPrice = ""
         category = "蔬菜"
         quantity = ""
         expires = Date()
