@@ -213,16 +213,30 @@ class ChallengeManager: ObservableObject {
     // MARK: - Challenge Progress Tracking
     
     func incrementChallenge(type: ChallengeType, userID: String) async {
-        guard let challengeIndex = activeChallenges.firstIndex(where: { 
-            $0.titleZh.contains(type.displayName) || $0.title.contains(type.rawValue)
+        guard let challengeIndex = activeChallenges.firstIndex(where: { challenge in
+            switch type {
+            case .sharing:
+                return challenge.titleZh == "分享達人挑戰" || challenge.title == "分享達人挑戰"
+            case .zeroWaste:
+                return challenge.titleZh == "Zero Waste Week" || challenge.title == "Zero Waste Week"
+            case .ecoContainer:
+                return challenge.titleZh == "環保小尖兵" || challenge.title == "環保小尖兵"
+            case .fridgeCleaning:
+                return challenge.titleZh == "冰箱清潔週" || challenge.title == "冰箱清潔週"
+            }
         }) else {
+            print("DEBUG: No challenge found for type \(type)")
             return
         }
         
         var challenge = activeChallenges[challengeIndex]
+        print("DEBUG: Found challenge '\(challenge.titleZh)' with progress \(challenge.progress)/\(challenge.goal)")
         
         // Don't increment if already completed
-        guard challenge.progress < challenge.goal else { return }
+        guard challenge.progress < challenge.goal else { 
+            print("DEBUG: Challenge already completed")
+            return 
+        }
         
         // Increment progress
         challenge = Challenge(
@@ -236,6 +250,7 @@ class ChallengeManager: ObservableObject {
         )
         
         activeChallenges[challengeIndex] = challenge
+        print("DEBUG: Incremented challenge to \(challenge.progress)/\(challenge.goal)")
         
         // Save locally for performance
         saveChallengesLocally()
@@ -347,6 +362,9 @@ class ChallengeManager: ObservableObject {
     // MARK: - Action Triggers
     
     func onFoodUpload(userID: String, useEcoContainer: Bool = false) async {
+        print("DEBUG: onFoodUpload called for user \(userID), useEcoContainer: \(useEcoContainer)")
+        print("DEBUG: Active challenges count: \(activeChallenges.count)")
+        
         // Increment sharing challenges
         await incrementChallenge(type: .sharing, userID: userID)
         await incrementChallenge(type: .zeroWaste, userID: userID)

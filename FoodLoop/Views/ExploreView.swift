@@ -163,18 +163,23 @@ struct ExploreView: View {
     
     // Load filtered items based on current selections
     private func loadFilteredItems() {
+        print("DEBUG: loadFilteredItems called with shareType: \(selectedShareType?.rawValue ?? "nil")")
         Task {
             if let shareType = selectedShareType {
                 // Load filtered by share type
+                print("DEBUG: Loading items for share type: \(shareType.rawValue)")
                 await foodRepo.loadFoodItemsByShareType(shareType)
+                print("DEBUG: Loaded \(foodRepo.foodItems.count) items for share type")
             } else if let location = locationManager.currentLocation {
                 // Load by location when "全部" is selected but we have location
+                print("DEBUG: Loading items by location")
                 await foodRepo.loadFoodItemsNearLocation(
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude
                 )
             } else {
                 // Load all items when "全部" is selected and no location
+                print("DEBUG: Loading all items")
                 await foodRepo.loadAllFoodItems()
             }
         }

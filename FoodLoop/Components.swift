@@ -337,12 +337,22 @@ class FoodRepository: ObservableObject {
         isLoading = true
         errorMessage = nil
         
+        print("DEBUG: FoodRepository.loadFoodItemsByShareType called with: \(shareType.rawValue)")
+        
         do {
             let firebaseItems = try await firebaseManager.getFoodItemsByShareType(shareType)
+            print("DEBUG: Firebase returned \(firebaseItems.count) items for shareType: \(shareType.rawValue)")
             
             foodItems = firebaseItems.map { $0.toFoodItem() }
+            
+            // Debug log first few items to see share types
+            for (index, item) in firebaseItems.prefix(3).enumerated() {
+                print("DEBUG: Item \(index): \(item.name) - shareType: \(item.shareType.rawValue)")
+            }
+            
             isLoading = false
         } catch {
+            print("DEBUG: Error loading items by share type: \(error)")
             errorMessage = "Failed to filter food items: \(error.localizedDescription)"
             isLoading = false
         }

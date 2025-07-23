@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-07-23
+
+### Fixed
+- ***Challenge Progress Logic***: Fixed exact challenge matching in ChallengeManager with proper string comparison  
+- **Share Type Filter Debug**: Added comprehensive debug logging for share type filtering issues
+- *Challenge Increment Flow*: Verified challenge progress +1 per upload with badge conversion when completed
+
+### Technical
+- **Debug Logging**: Enhanced ChallengeManager and ExploreView with detailed progress tracking logs
+- **Challenge Matching**: Replaced contains() logic with exact switch-case matching for reliable challenge detection
+
 ## [0.2.1] - 2025-07-23
 
 ### Fixed
