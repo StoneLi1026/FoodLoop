@@ -163,23 +163,7 @@ class UserProfileModel: ObservableObject {
     }
 }
 
-struct Badge: Identifiable, Hashable {
-    let id = UUID()
-    let name: String
-    let icon: String
-    let active: Bool
-}
-
-struct Challenge: Identifiable {
-    let id = UUID()
-    let title: String
-    let titleZh: String
-    let subtitle: String
-    let subtitleZh: String
-    let progress: Int
-    let goal: Int
-    let color: Color
-}
+// Badge and Challenge structs moved to Components.swift
 
 // MARK: - Profile Header View
 struct ProfileHeaderView: View {

@@ -34,6 +34,28 @@ struct RecipeCard {
     let desc: String
 }
 
+struct Challenge: Identifiable, Equatable {
+    let id = UUID()
+    let title: String
+    let titleZh: String
+    let subtitle: String
+    let subtitleZh: String
+    let progress: Int
+    let goal: Int
+    let color: Color
+    
+    static func == (lhs: Challenge, rhs: Challenge) -> Bool {
+        return lhs.id == rhs.id && lhs.progress == rhs.progress
+    }
+}
+
+struct Badge: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let icon: String
+    let active: Bool
+}
+
 // 食物卡片
 struct FoodCardView: View {
     let item: FoodItem
@@ -287,6 +309,22 @@ class FoodRepository: ObservableObject {
                 )
                 return foodItem
             }
+            isLoading = false
+        } catch {
+            errorMessage = "Failed to load food items: \(error.localizedDescription)"
+            isLoading = false
+        }
+    }
+    
+    // Load all food items
+    func loadAllFoodItems() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let firebaseItems = try await firebaseManager.getFoodItems(limit: 50)
+            
+            foodItems = firebaseItems.map { $0.toFoodItem() }
             isLoading = false
         } catch {
             errorMessage = "Failed to load food items: \(error.localizedDescription)"

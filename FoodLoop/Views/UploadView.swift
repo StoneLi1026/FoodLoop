@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import CoreLocation
 import FirebaseAuth
+import FirebaseStorage
 
 struct UploadView: View {
     @EnvironmentObject var foodRepo: FoodRepository
@@ -318,6 +319,12 @@ struct UploadView: View {
         isUploading = true
         
         Task {
+            // Upload photos first if any
+            var imageURLs: [String] = []
+            if !selectedImages.isEmpty {
+                imageURLs = await uploadPhotosToStorage(userID: currentUser.uid)
+            }
+            
             // Get current location
             var latitude: Double = 25.0330 // Default to Taipei if no location
             var longitude: Double = 121.5654
@@ -349,7 +356,7 @@ struct UploadView: View {
                 aiRecipes: generateAIRecipes(category: category),
                 tags: selectedTags.isEmpty ? [category] : selectedTags,
                 price: actualPrice,
-                imageURLs: [], // Will be updated after photo upload
+                imageURLs: imageURLs, // Use uploaded photo URLs
                 distance: "計算中"
             )
             
@@ -361,19 +368,19 @@ struct UploadView: View {
                 uploaderID: currentUser.uid
             )
             
+            // Trigger challenge progress after successful upload
+            if foodRepo.errorMessage == nil {
+                let useEcoContainer = selectedTags.contains("環保") || selectedTags.contains("自製")
+                await challengeManager.onFoodUpload(
+                    userID: currentUser.uid, 
+                    useEcoContainer: useEcoContainer
+                )
+            }
+            
             await MainActor.run {
                 isUploading = false
                 if foodRepo.errorMessage == nil {
                     uploadSuccess = true
-                    
-                    // Trigger challenge progress
-                    Task {
-                        let useEcoContainer = selectedTags.contains("環保") || selectedTags.contains("自製")
-                        await challengeManager.onFoodUpload(
-                            userID: currentUser.uid, 
-                            useEcoContainer: useEcoContainer
-                        )
-                    }
                 }
             }
         }
@@ -427,5 +434,42 @@ struct UploadView: View {
         return recipesByCategory[category] ?? [
             RecipeCard(emoji: "🍳", title: "簡易快炒", desc: "快速翻炒，美味上桌。")
         ]
+    }
+    
+    // MARK: - Photo Upload Functions
+    
+    private func uploadPhotosToStorage(userID: String) async -> [String] {
+        var uploadedURLs: [String] = []
+        let storage = Storage.storage()
+        
+        for (index, image) in selectedImages.enumerated() {
+            // Create unique filename
+            let fileName = "\(UUID().uuidString).jpg"
+            let path = "food_images/\(userID)/\(UUID().uuidString)/\(fileName)"
+            let storageRef = storage.reference().child(path)
+            
+            // Convert UIImage to Data
+            guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                continue
+            }
+            
+            do {
+                // Upload image data
+                let metadata = StorageMetadata()
+                metadata.contentType = "image/jpeg"
+                
+                let _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
+                
+                // Get download URL
+                let downloadURL = try await storageRef.downloadURL()
+                uploadedURLs.append(downloadURL.absoluteString)
+                
+            } catch {
+                print("Failed to upload image \(index): \(error.localizedDescription)")
+                // Continue with other images even if one fails
+            }
+        }
+        
+        return uploadedURLs
     }
 }

@@ -61,18 +61,11 @@ struct ExploreView: View {
     var filteredList: [FoodItem] {
         var filtered = foodRepo.foodItems
         
-        // Apply search filter
+        // Apply search filter only (share type filter is handled by loadFilteredItems)
         if !searchText.isEmpty {
             filtered = filtered.filter { item in
                 item.name.localizedStandardContains(searchText) ||
                 item.tags.contains { $0.localizedStandardContains(searchText) }
-            }
-        }
-        
-        // Apply share type filter
-        if let shareType = selectedShareType {
-            filtered = filtered.filter { item in
-                item.shareType == shareType.rawValue
             }
         }
         
@@ -172,12 +165,17 @@ struct ExploreView: View {
     private func loadFilteredItems() {
         Task {
             if let shareType = selectedShareType {
+                // Load filtered by share type
                 await foodRepo.loadFoodItemsByShareType(shareType)
             } else if let location = locationManager.currentLocation {
+                // Load by location when "全部" is selected but we have location
                 await foodRepo.loadFoodItemsNearLocation(
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude
                 )
+            } else {
+                // Load all items when "全部" is selected and no location
+                await foodRepo.loadAllFoodItems()
             }
         }
     }

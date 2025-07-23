@@ -12,6 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-07-23
+
+### Fixed
+- ***ExploreView Food Display***: Fixed uploaded food not appearing in ExploreView by properly handling "全部" (All) filter
+- ***Photo Upload Integration***: Implemented complete Firebase Storage photo upload functionality
+- ***Challenge Progress Tracking***: Fixed challenge progress not incrementing after food upload
+- **Filter System Logic**: Resolved duplicate filtering logic causing conflicts between share type filters
+- **Challenge UI Synchronization**: Synced challenge bars between HomeView and ChallengesView using ChallengeManager
+- *Data Loading*: Added loadAllFoodItems() method for proper "全部" filter functionality
+
+### Technical
+- **Firebase Storage**: Added photo upload to Storage with proper path structure and metadata
+- **ChallengeManager Integration**: Updated ChallengesView to use centralized challenge management
+- **Filter Logic Cleanup**: Removed duplicate filtering in ExploreView's filteredList computed property
+- *Progress Bar Consistency*: Standardized challenge progress bar styling across views
+
 ## [0.2.0] - 2025-07-23
 
 ### Added

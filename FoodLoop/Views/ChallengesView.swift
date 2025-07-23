@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChallengesView: View {
     @EnvironmentObject var user: UserProfileModel
+    @StateObject private var challengeManager = ChallengeManager.shared
     
     var body: some View {
         ScrollView {
@@ -17,42 +18,26 @@ struct ChallengesView: View {
                 }
                 .padding(.top, 8)
                 
-                // Active Challenges
+                // Active Challenges - Using ChallengeManager to match HomeView
                 VStack(alignment: .leading, spacing: 18) {
                     Text("🎯 Active Challenges")
                         .font(.title3).fontWeight(.bold)
                         .padding(.bottom, 2)
-                    ForEach(user.challenges) { challenge in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(challenge.titleZh)
+                    ForEach(challengeManager.activeChallenges) { challenge in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(challenge.titleZh.isEmpty ? challenge.title : challenge.titleZh)
                                 .font(.headline)
                                 .foregroundColor(.white)
-                            Text(challenge.subtitleZh)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.92))
-                            ProgressBarView(progress: Double(challenge.progress) / Double(challenge.goal))
+                            Text(challenge.subtitleZh.isEmpty ? challenge.subtitle : challenge.subtitleZh)
+                                .foregroundColor(.white)
+                            ProgressBarView(progress: CGFloat(challenge.progress) / CGFloat(challenge.goal))
                                 .frame(height: 10)
-                                .padding(.vertical, 2)
-                            HStack {
-                                Text("\(challenge.progress)/\(challenge.goal) completed")
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Button(action: {}) {
-                                    Text(challenge.progress == challenge.goal ? "完成" : "繼續")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 6)
-                                        .background(Color.white.opacity(0.25))
-                                        .foregroundColor(.white)
-                                        .cornerRadius(12)
-                                }
-                                .disabled(challenge.progress == challenge.goal)
-                                .opacity(challenge.progress == challenge.goal ? 0.5 : 1)
-                            }
+                            Text("\(challenge.progress)/\(challenge.goal) completed")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.9))
                         }
                         .padding()
-                        .background(challenge.color)
+                        .background(challenge.color.opacity(0.5))
                         .cornerRadius(18)
                     }
                 }
@@ -96,5 +81,13 @@ struct ChallengesView: View {
         }
         .navigationTitle("挑戰")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Sync challenges with ChallengeManager
+            challengeManager.syncChallengesWithUser(user)
+        }
+        .onChange(of: user.challenges) { oldValue, newValue in
+            // Update challenges when user data changes
+            challengeManager.syncChallengesWithUser(user)
+        }
     }
 }
