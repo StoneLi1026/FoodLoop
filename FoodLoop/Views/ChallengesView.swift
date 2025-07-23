@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ChallengesView: View {
     @EnvironmentObject var user: UserProfileModel
-    @StateObject private var challengeManager = ChallengeManager.shared
+    @ObservedObject private var challengeManager = ChallengeManager.shared
     
     var body: some View {
         ScrollView {

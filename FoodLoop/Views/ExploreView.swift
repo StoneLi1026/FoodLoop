@@ -159,6 +159,10 @@ struct ExploreView: View {
             locationManager.requestPermission()
             loadFilteredItems()
         }
+        .onChange(of: selectedShareType) { oldValue, newValue in
+            print("DEBUG: Share type changed from \(oldValue?.rawValue ?? "nil") to \(newValue?.rawValue ?? "nil")")
+            loadFilteredItems()
+        }
     }
     
     // Load filtered items based on current selections

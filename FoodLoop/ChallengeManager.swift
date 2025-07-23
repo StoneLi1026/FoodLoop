@@ -258,6 +258,8 @@ class ChallengeManager: ObservableObject {
         // Update Firebase
         await updateChallengeInFirebase(challenge: challenge, userID: userID)
         
+        print("DEBUG: Challenge update completed for \(challenge.titleZh)")
+        
         // Check if challenge is completed
         if challenge.progress >= challenge.goal {
             await convertChallengeToeBadge(challenge: challenge, userID: userID)

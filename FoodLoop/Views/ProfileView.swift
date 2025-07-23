@@ -519,23 +519,28 @@ struct MyUploadsView: View {
     
     private func loadUserUploads() {
         guard let currentUserID = user.currentUserID else {
+            print("DEBUG: MyUploadsView - No current user ID")
             errorMessage = "用戶未登入"
             isLoading = false
             return
         }
         
+        print("DEBUG: MyUploadsView - Loading uploads for user: \(currentUserID)")
         isLoading = true
         errorMessage = nil
         
         Task {
             do {
                 let firebaseItems = try await firebaseManager.getFoodItemsByUser(uid: currentUserID)
+                print("DEBUG: MyUploadsView - Found \(firebaseItems.count) items for user")
                 
                 await MainActor.run {
                     self.userFoodItems = firebaseItems.map { $0.toFoodItem() }
                     self.isLoading = false
+                    print("DEBUG: MyUploadsView - Updated UI with \(self.userFoodItems.count) items")
                 }
             } catch {
+                print("DEBUG: MyUploadsView - Error loading user uploads: \(error)")
                 await MainActor.run {
                     self.errorMessage = "載入失敗: \(error.localizedDescription)"
                     self.isLoading = false
