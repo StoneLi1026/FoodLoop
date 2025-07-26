@@ -5,7 +5,7 @@ struct HomeView: View {
     @State private var showExplore = false
     @State private var showGreenReport = false
     @EnvironmentObject var user: UserProfileModel
-    @StateObject private var challengeManager = ChallengeManager.shared
+    @ObservedObject private var challengeManager = ChallengeManager.shared
     
     var body: some View {
         NavigationStack {
@@ -25,12 +25,14 @@ struct HomeView: View {
                 GreenReportView()
             }
             .onAppear {
-                // Sync challenges with ChallengeManager
-                challengeManager.syncChallengesWithUser(user)
+                // Load current challenge progress from Firebase
+                challengeManager.syncWithUser(user)
             }
-            .onChange(of: user.challenges) { oldValue, newValue in
-                // Update challenges when user data changes
-                challengeManager.syncChallengesWithUser(user)
+            .onChange(of: user.currentUserID) { oldValue, newValue in
+                // Reload challenges when user changes
+                if newValue != nil {
+                    challengeManager.syncWithUser(user)
+                }
             }
         }
     }

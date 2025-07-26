@@ -6,12 +6,12 @@ struct ExploreView: View {
     @State private var selectedFilter = 0
     @State private var searchText = ""
     @State private var showFridgeMap = false
-    @State private var selectedShareType: ShareType? = nil
+    @State private var selectedTag: String? = nil
     @State private var locationManager = LocationManager()
     
     let filters = ["距離", "分類", "價格", "即期"]
-    let shareTypeFilters: [ShareType?] = [nil, .free, .discounted, .donation]
-    let shareTypeLabels = ["全部", "免費", "優惠", "捐贈"]
+    let tagFilters: [String?] = [nil, "有機", "自製", "環保", "即食", "甜品"]
+    let tagFilterLabels = ["全部", "有機", "自製", "環保", "即食", "甜品"]
     
     //將 expires 字串轉成「代表時間早晚的權重值」再排序
     func expiryPriority(_ date: Date) -> Int {
@@ -61,11 +61,18 @@ struct ExploreView: View {
     var filteredList: [FoodItem] {
         var filtered = foodRepo.foodItems
         
-        // Apply search filter only (share type filter is handled by loadFilteredItems)
+        // Apply search filter
         if !searchText.isEmpty {
             filtered = filtered.filter { item in
                 item.name.localizedStandardContains(searchText) ||
                 item.tags.contains { $0.localizedStandardContains(searchText) }
+            }
+        }
+        
+        // Apply tag filter
+        if let selectedTag = selectedTag {
+            filtered = filtered.filter { item in
+                item.tags.contains(selectedTag)
             }
         }
         
@@ -87,16 +94,16 @@ struct ExploreView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
                 
-                // 分享類型篩選 chips
+                // 標籤篩選 chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(shareTypeLabels.indices, id: \.self) { idx in
+                        ForEach(tagFilterLabels.indices, id: \.self) { idx in
                             FilterChip(
-                                title: shareTypeLabels[idx], 
-                                isSelected: selectedShareType == shareTypeFilters[idx]
+                                title: tagFilterLabels[idx], 
+                                isSelected: selectedTag == tagFilters[idx]
                             ) {
-                                selectedShareType = shareTypeFilters[idx]
-                                loadFilteredItems()
+                                selectedTag = tagFilters[idx]
+                                print("DEBUG: Selected tag filter: \(tagFilters[idx] ?? "nil")")
                             }
                         }
                     }
@@ -159,30 +166,25 @@ struct ExploreView: View {
             locationManager.requestPermission()
             loadFilteredItems()
         }
-        .onChange(of: selectedShareType) { oldValue, newValue in
-            print("DEBUG: Share type changed from \(oldValue?.rawValue ?? "nil") to \(newValue?.rawValue ?? "nil")")
-            loadFilteredItems()
+        .onChange(of: selectedTag) { oldValue, newValue in
+            print("DEBUG: Tag filter changed from \(oldValue ?? "nil") to \(newValue ?? "nil")")
+            // No need to reload data, filteredList will automatically update
         }
     }
     
     // Load filtered items based on current selections
     private func loadFilteredItems() {
-        print("DEBUG: loadFilteredItems called with shareType: \(selectedShareType?.rawValue ?? "nil")")
+        print("DEBUG: loadFilteredItems called")
         Task {
-            if let shareType = selectedShareType {
-                // Load filtered by share type
-                print("DEBUG: Loading items for share type: \(shareType.rawValue)")
-                await foodRepo.loadFoodItemsByShareType(shareType)
-                print("DEBUG: Loaded \(foodRepo.foodItems.count) items for share type")
-            } else if let location = locationManager.currentLocation {
-                // Load by location when "全部" is selected but we have location
+            if let location = locationManager.currentLocation {
+                // Load by location when we have location
                 print("DEBUG: Loading items by location")
                 await foodRepo.loadFoodItemsNearLocation(
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude
                 )
             } else {
-                // Load all items when "全部" is selected and no location
+                // Load all items when no location
                 print("DEBUG: Loading all items")
                 await foodRepo.loadAllFoodItems()
             }

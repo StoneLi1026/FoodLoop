@@ -370,11 +370,18 @@ struct UploadView: View {
             
             // Trigger challenge progress after successful upload
             if foodRepo.errorMessage == nil {
-                let useEcoContainer = selectedTags.contains("環保") || selectedTags.contains("自製")
                 await challengeManager.onFoodUpload(
-                    userID: currentUser.uid, 
-                    useEcoContainer: useEcoContainer
+                    userID: currentUser.uid,
+                    userProfile: userProfile
                 )
+                
+                // Check for eco container usage
+                if selectedTags.contains("環保") || selectedTags.contains("自製") {
+                    await challengeManager.onEcoContainerUsed(
+                        userID: currentUser.uid,
+                        userProfile: userProfile
+                    )
+                }
             }
             
             await MainActor.run {

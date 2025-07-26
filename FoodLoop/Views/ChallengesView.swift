@@ -82,12 +82,14 @@ struct ChallengesView: View {
         .navigationTitle("挑戰")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // Sync challenges with ChallengeManager
-            challengeManager.syncChallengesWithUser(user)
+            // Load current challenge progress from Firebase
+            challengeManager.syncWithUser(user)
         }
-        .onChange(of: user.challenges) { oldValue, newValue in
-            // Update challenges when user data changes
-            challengeManager.syncChallengesWithUser(user)
+        .onChange(of: user.currentUserID) { oldValue, newValue in
+            // Reload challenges when user changes
+            if newValue != nil {
+                challengeManager.syncWithUser(user)
+            }
         }
     }
 }

@@ -193,29 +193,37 @@ class FirebaseManager: ObservableObject {
     }
     
     func getFoodItemsByShareType(_ shareType: ShareType, limit: Int = 50) async throws -> [FirebaseFoodItem] {
+        // Temporary workaround: Query without ordering to avoid composite index requirement
+        // TODO: Create composite index in Firebase Console for optimal performance
         let snapshot = try await db.collection(foodItemsCollection)
             .whereField("is_active", isEqualTo: true)
             .whereField("share_type", isEqualTo: shareType.rawValue)
-            .order(by: "created_at", descending: true)
             .limit(to: limit)
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
+        let items = try snapshot.documents.compactMap { document in
             try document.data(as: FirebaseFoodItem.self)
         }
+        
+        // Sort locally by created date (descending)
+        return items.sorted { $0.createdAt > $1.createdAt }
     }
     
     func getFoodItemsByUser(uid: String, limit: Int = 50) async throws -> [FirebaseFoodItem] {
+        // Temporary workaround: Query without ordering to avoid composite index requirement
+        // TODO: Create composite index in Firebase Console for optimal performance
         let snapshot = try await db.collection(foodItemsCollection)
             .whereField("uploader_id", isEqualTo: uid)
             .whereField("is_active", isEqualTo: true)
-            .order(by: "created_at", descending: true)
             .limit(to: limit)
             .getDocuments()
         
-        return try snapshot.documents.compactMap { document in
+        let items = try snapshot.documents.compactMap { document in
             try document.data(as: FirebaseFoodItem.self)
         }
+        
+        // Sort locally by created date (descending)
+        return items.sorted { $0.createdAt > $1.createdAt }
     }
     
     func updateFoodItem(id: String, updates: [String: Any]) async throws {

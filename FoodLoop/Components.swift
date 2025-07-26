@@ -35,7 +35,7 @@ struct RecipeCard {
 }
 
 struct Challenge: Identifiable, Equatable {
-    let id = UUID()
+    let id: String
     let title: String
     let titleZh: String
     let subtitle: String
@@ -43,6 +43,18 @@ struct Challenge: Identifiable, Equatable {
     let progress: Int
     let goal: Int
     let color: Color
+    
+    // Create challenge with consistent ID based on title
+    init(title: String, titleZh: String, subtitle: String, subtitleZh: String, progress: Int, goal: Int, color: Color) {
+        self.id = titleZh.isEmpty ? title : titleZh // Use title as consistent ID
+        self.title = title
+        self.titleZh = titleZh
+        self.subtitle = subtitle
+        self.subtitleZh = subtitleZh
+        self.progress = progress
+        self.goal = goal
+        self.color = color
+    }
     
     static func == (lhs: Challenge, rhs: Challenge) -> Bool {
         return lhs.id == rhs.id && lhs.progress == rhs.progress
