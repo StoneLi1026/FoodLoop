@@ -128,6 +128,18 @@ struct ExploreView: View {
                 ZStack(alignment: .bottomTrailing) {
                     ScrollView {
                         LazyVStack(spacing: 20) {
+                            // Loading indicator when refreshing
+                            if foodRepo.isLoading {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("載入中...")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            
                             ForEach(filteredList) { item in
                                 NavigationLink(destination: FoodDetailView(foodItem: item)) {
                                     FoodCardView(item: item)
@@ -138,6 +150,9 @@ struct ExploreView: View {
                         .padding(.horizontal)
                         .padding(.top, 8)
                         .padding(.bottom, 32)
+                    }
+                    .refreshable {
+                        await refreshFoodData()
                     }
                     // 懸浮按鈕
                     Button(action: { showFridgeMap = true }) {
@@ -174,21 +189,56 @@ struct ExploreView: View {
     
     // Load filtered items based on current selections
     private func loadFilteredItems() {
-        print("DEBUG: loadFilteredItems called")
+        print("DEBUG: ExploreView.loadFilteredItems called")
+        print("DEBUG: Current location available: \(locationManager.currentLocation != nil)")
+        print("DEBUG: Current foodRepo.foodItems count: \(foodRepo.foodItems.count)")
+        
         Task {
             if let location = locationManager.currentLocation {
                 // Load by location when we have location
-                print("DEBUG: Loading items by location")
+                print("DEBUG: Loading items by location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
                 await foodRepo.loadFoodItemsNearLocation(
                     latitude: location.coordinate.latitude,
                     longitude: location.coordinate.longitude
                 )
+                print("DEBUG: After location load - foodItems count: \(foodRepo.foodItems.count)")
             } else {
                 // Load all items when no location
-                print("DEBUG: Loading all items")
+                print("DEBUG: Loading all items (no location)")
                 await foodRepo.loadAllFoodItems()
+                print("DEBUG: After loadAll - foodItems count: \(foodRepo.foodItems.count)")
+            }
+            
+            if foodRepo.foodItems.isEmpty {
+                print("⚠️ WARNING: No food items loaded! ErrorMessage: \(foodRepo.errorMessage ?? "none")")
             }
         }
+    }
+    
+    // Pull-to-refresh function
+    private func refreshFoodData() async {
+        print("DEBUG: Pull-to-refresh triggered - refreshing food data")
+        
+        // Show a brief loading state
+        foodRepo.isLoading = true
+        
+        // Small delay to show refresh animation
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        
+        if let location = locationManager.currentLocation {
+            // Refresh with location data
+            print("DEBUG: Refreshing items by location")
+            await foodRepo.loadFoodItemsNearLocation(
+                latitude: location.coordinate.latitude,
+                longitude: location.coordinate.longitude
+            )
+        } else {
+            // Refresh all items
+            print("DEBUG: Refreshing all items")
+            await foodRepo.loadAllFoodItems()
+        }
+        
+        print("DEBUG: Pull-to-refresh completed")
     }
 }
 

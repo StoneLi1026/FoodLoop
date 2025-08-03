@@ -12,6 +12,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-08-03
+
+### Added
+- **Pull-to-Refresh**: ExploreView now supports pull-to-refresh functionality for real-time food data updates
+- ***Flexible Tag Layout System***: Implemented intelligent tag wrapping that properly handles Chinese text without breaking words
+- **Enhanced Debug Logging**: Comprehensive logging throughout FoodRepository, ExploreView, and ProfileView for better troubleshooting
+
+### Fixed
+- ***Tag Layout for Chinese Text***: Fixed tags being broken into individual characters ([有] [自] [農場] 機 製 直送) - now displays properly ([有機] [自製] [農場直送])
+- ***Real-Time Data Sync***: Fixed food items not appearing immediately after upload - users no longer need to restart app
+- ***Firebase Decoding Errors***: Resolved keyNotFound errors for `image_urls` and `id` fields in older Firebase data
+- **MainActor Threading**: Fixed "Publishing changes from background threads" warnings in ProfileView
+- **Profile Re-sync**: Added manual profile re-sync functionality for troubleshooting user data issues
+
+### Changed
+- ***Text Width Calculation***: Implemented accurate UIKit-based text measurement for proper Chinese character width calculation
+- **FlexibleTagsView**: Enhanced with precise text measurement to prevent word breaking
+- **Firebase Models**: Made `imageURLs` optional and added custom decoders for backward compatibility with older data
+- **Error Handling**: Improved error handling for missing fields in Firebase documents
+
+### Technical
+- **UIKit Integration**: Added NSAttributedString-based text width calculation for accurate Chinese text measurement
+- **FlexibleView Layout**: Enhanced generic layout system with proper width estimation
+- **Backward Compatibility**: Custom decoders handle missing fields in older Firebase documents
+- **Debug Infrastructure**: Added comprehensive debug logging for data flow tracking
+
+## [0.3.0] - 2025-07-26
+
+### Added
+- ***Complete Challenge/Mission System***: Fully rebuilt real-time progress tracking system with automatic badge conversion
+- ***Points Reward System***: Users earn 10 points per upload + 50 bonus points for completing challenges
+- **Tag-Based Filtering**: ExploreView filters now work with food tags/labels instead of share types
+- **Real-Time Progress Bars**: Challenge progress updates immediately when users upload food (+1 per upload)
+- **Automatic Badge Conversion**: Challenges disappear and convert to badges when goals are reached
+- *Consistent Challenge IDs*: Challenges now use title-based IDs for proper SwiftUI tracking
+
+### Fixed
+- ***Challenge Progress Tracking***: Fixed progress bars not updating in ChallengesView while HomeView stats worked correctly
+- ***ProfileView My Uploads***: Resolved empty uploads section with proper Firebase query handling and composite index workaround
+- ***ExploreView Filters***: Changed from server-side share type filtering to client-side tag filtering for better performance
+- **ChallengeManager Sync**: Fixed data flow between ChallengeManager and UserProfileModel for real-time UI updates
+- **Firebase Query Optimization**: Implemented local sorting to avoid composite index requirements temporarily
+
+### Changed
+- ***Challenge System Architecture***: Completely rebuilt with simplified, reliable Firebase integration
+- **Challenge Progress Storage**: Uses simple field-based storage (`challenge_progress.{type}`) instead of complex arrays
+- **Filter System**: ExploreView now filters by food tags ("有機", "自製", "環保", etc.) instead of share types
+- *Challenge Initialization*: Fresh start approach - progress begins from today, not historical uploads
+
+### Technical
+- **Simplified Firebase Operations**: Reduced complex document operations to simple field updates
+- **Debug Logging**: Comprehensive logging for challenge progress tracking and filtering
+- **Code Cleanup**: Removed 625 lines of complex legacy code, added 291 lines of streamlined logic
+- *Firestore Index Configuration*: Added firestore.indexes.json for future composite index deployment
+
 ## [0.2.2] - 2025-07-23
 
 ### Fixed

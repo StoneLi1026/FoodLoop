@@ -23,7 +23,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
     let aiRecipes: [FirebaseRecipeCard]
     let tags: [String]
     let price: String?
-    let imageURLs: [String]
+    let imageURLs: [String]?
     let latitude: Double
     let longitude: Double
     let geohash: String
@@ -80,7 +80,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
             aiRecipes: aiRecipes.map { $0.toRecipeCard() },
             tags: tags,
             price: price,
-            imageURLs: imageURLs,
+            imageURLs: imageURLs ?? [],
             distance: distance
         )
     }
@@ -167,6 +167,42 @@ struct FirebaseBadge: Codable, Identifiable {
     let icon: String
     let active: Bool
     let earnedAt: Date?
+    
+    // Regular initializer for creating new badges
+    init(id: String, name: String, icon: String, active: Bool, earnedAt: Date?) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.active = active
+        self.earnedAt = earnedAt
+    }
+    
+    // Custom decoder to handle missing id field
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // If id is missing, generate one from name
+        if let id = try? container.decode(String.self, forKey: .id) {
+            self.id = id
+        } else {
+            self.id = UUID().uuidString // Fallback for old badges
+        }
+        
+        self.name = try container.decode(String.self, forKey: .name)
+        self.icon = try container.decode(String.self, forKey: .icon)
+        self.active = try container.decode(Bool.self, forKey: .active)
+        self.earnedAt = try? container.decode(Date.self, forKey: .earnedAt)
+    }
+    
+    // Custom encoder
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(icon, forKey: .icon)
+        try container.encode(active, forKey: .active)
+        try container.encodeIfPresent(earnedAt, forKey: .earnedAt)
+    }
     
     enum CodingKeys: String, CodingKey {
         case id

@@ -208,13 +208,18 @@ class ChallengeManager: ObservableObject {
             let userRef = Firestore.firestore().collection("users").document(userID)
             let snapshot = try await userRef.getDocument()
             
+            print("DEBUG: Loading challenges for user: \(userID)")
+            
             if let data = snapshot.data(),
                let challengeProgress = data["challenge_progress"] as? [String: Int] {
+                
+                print("DEBUG: Found existing challenge progress: \(challengeProgress)")
                 
                 // Update local challenges with Firebase data
                 for (index, challenge) in activeChallenges.enumerated() {
                     let challengeType = getChallengeType(for: challenge)
                     if let progress = challengeProgress[challengeType.rawValue] {
+                        print("DEBUG: Updating \(challenge.titleZh) progress from \(challenge.progress) to \(progress)")
                         activeChallenges[index] = Challenge(
                             title: challenge.title,
                             titleZh: challenge.titleZh,
@@ -231,6 +236,10 @@ class ChallengeManager: ObservableObject {
                 userProfile.challenges = activeChallenges
                 
                 print("DEBUG: Loaded challenge progress from Firebase")
+            } else {
+                print("DEBUG: No existing challenge progress found - using default values (all 0)")
+                // For new users, ensure challenges start at 0
+                userProfile.challenges = activeChallenges
             }
             
         } catch {

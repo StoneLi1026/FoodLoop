@@ -127,6 +127,35 @@ class UserProfileModel: ObservableObject {
         }
     }
     
+    // Manual profile re-sync for troubleshooting
+    func forceProfileResync() async {
+        guard let currentUser = Auth.auth().currentUser else {
+            print("❌ DEBUG: No authenticated user for re-sync")
+            return
+        }
+        
+        print("🔄 DEBUG: Force re-syncing profile for user: \(currentUser.uid)")
+        print("🔄 DEBUG: Current auth user name: \(currentUser.displayName ?? "none")")
+        print("🔄 DEBUG: Current auth user email: \(currentUser.email ?? "none")")
+        
+        await MainActor.run {
+            isLoading = true
+            errorMessage = nil
+        }
+        
+        do {
+            // Force recreate/update user document
+            let _ = try await firebaseManager.createOrUpdateUser(from: currentUser)
+            print("✅ DEBUG: Profile re-sync completed")
+        } catch {
+            print("❌ DEBUG: Profile re-sync failed: \(error)")
+            await MainActor.run {
+                self.errorMessage = "Profile re-sync failed: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
+    }
+    
     // Reset to guest mode
     private func resetToGuestMode() {
         listener?.remove()
@@ -340,6 +369,22 @@ struct ProfileView: View {
                     .shadow(color: Color(.black).opacity(0.04), radius: 4, x: 0, y: 2)
                     .padding(.horizontal)
                     
+                    // Debug: Profile Re-sync Button (temporary)
+                    Button(action: {
+                        Task {
+                            await user.forceProfileResync()
+                        }
+                    }) {
+                        Text("🔄 重新同步個人資料 (除錯)")
+                            .font(.body)
+                            .foregroundColor(.blue)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color(.systemBlue).opacity(0.1))
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
                     // Logout Button
                     Button(action: handleLogout) {
                         Text("登出")
@@ -519,13 +564,16 @@ struct MyUploadsView: View {
     
     private func loadUserUploads() {
         guard let currentUserID = user.currentUserID else {
-            print("DEBUG: MyUploadsView - No current user ID")
+            print("❌ DEBUG: MyUploadsView - No current user ID")
+            print("❌ DEBUG: Auth.auth().currentUser: \(Auth.auth().currentUser?.uid ?? "nil")")
             errorMessage = "用戶未登入"
             isLoading = false
             return
         }
         
-        print("DEBUG: MyUploadsView - Loading uploads for user: \(currentUserID)")
+        print("🔍 DEBUG: MyUploadsView - Loading uploads for user: \(currentUserID)")
+        print("🔍 DEBUG: User profile name: \(user.name)")
+        print("🔍 DEBUG: User shareCount: \(user.shareCount)")
         isLoading = true
         errorMessage = nil
         
@@ -537,7 +585,14 @@ struct MyUploadsView: View {
                 await MainActor.run {
                     self.userFoodItems = firebaseItems.map { $0.toFoodItem() }
                     self.isLoading = false
-                    print("DEBUG: MyUploadsView - Updated UI with \(self.userFoodItems.count) items")
+                    print("✅ DEBUG: MyUploadsView - Firebase returned \(firebaseItems.count) items")
+                    print("✅ DEBUG: MyUploadsView - Updated UI with \(self.userFoodItems.count) items")
+                    
+                    if firebaseItems.isEmpty {
+                        print("⚠️ WARNING: No uploads found for user \(currentUserID)")
+                    } else {
+                        print("📝 DEBUG: Sample upload: \(firebaseItems.first?.name ?? "unknown")")
+                    }
                 }
             } catch {
                 print("DEBUG: MyUploadsView - Error loading user uploads: \(error)")

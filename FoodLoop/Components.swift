@@ -83,17 +83,8 @@ struct FoodCardView: View {
                 Text("\(item.distance)・\(item.expires.toRelativeExpireString())")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                HStack(spacing: 8) {
-                    ForEach(item.tags, id: \.self) { tag in
-                        Text(tag)
-                            .font(.caption)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Color(.systemGreen).opacity(0.10))
-                            .foregroundColor(Color(.systemGreen))
-                            .cornerRadius(12)
-                    }
-                }
+                // Flexible tag layout that can wrap to multiple lines
+                FlexibleTagsView(tags: item.tags)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 40) {
@@ -108,6 +99,140 @@ struct FoodCardView: View {
         .background(Color.white)
         .cornerRadius(20)
         .shadow(color: Color(.black).opacity(0.04), radius: 6, x: 0, y: 2)
+    }
+}
+
+// Flexible Tags View that wraps to multiple lines
+struct FlexibleTagsView: View {
+    let tags: [String]
+    
+    var body: some View {
+        FlexibleView(
+            data: tags,
+            spacing: 8,
+            alignment: .leading
+        ) { tag in
+            Text(tag)
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(Color(.systemGreen).opacity(0.10))
+                .foregroundColor(Color(.systemGreen))
+                .cornerRadius(12)
+        }
+    }
+}
+
+// Generic flexible layout view that wraps content
+struct FlexibleView<Data: Collection, Content: View>: View where Data.Element: Hashable {
+    let data: Data
+    let spacing: CGFloat
+    let alignment: HorizontalAlignment
+    let content: (Data.Element) -> Content
+    @State private var availableWidth: CGFloat = 0
+
+    init(data: Data, spacing: CGFloat = 8, alignment: HorizontalAlignment = .leading, @ViewBuilder content: @escaping (Data.Element) -> Content) {
+        self.data = data
+        self.spacing = spacing
+        self.alignment = alignment
+        self.content = content
+    }
+
+    var body: some View {
+        ZStack(alignment: Alignment(horizontal: alignment, vertical: .center)) {
+            Color.clear
+                .frame(height: 1)
+                .readSize { size in
+                    availableWidth = size.width
+                }
+
+            FlexibleViewLayout(
+                data: data,
+                spacing: spacing,
+                availableWidth: availableWidth,
+                content: content
+            )
+        }
+    }
+}
+
+struct FlexibleViewLayout<Data: Collection, Content: View>: View where Data.Element: Hashable {
+    let data: Data
+    let spacing: CGFloat
+    let availableWidth: CGFloat
+    let content: (Data.Element) -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: spacing) {
+            ForEach(computeRows(), id: \.self) { rowData in
+                HStack(spacing: spacing) {
+                    ForEach(rowData, id: \.self) { item in
+                        content(item)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    func computeRows() -> [[Data.Element]] {
+        var rows: [[Data.Element]] = []
+        var currentRow: [Data.Element] = []
+        var currentRowWidth: CGFloat = 0
+
+        for item in data {
+            let itemWidth = estimateWidth(for: item)
+            
+            if currentRowWidth + itemWidth + (currentRow.isEmpty ? 0 : spacing) <= availableWidth {
+                currentRow.append(item)
+                currentRowWidth += itemWidth + (currentRow.count > 1 ? spacing : 0)
+            } else {
+                if !currentRow.isEmpty {
+                    rows.append(currentRow)
+                    currentRow = [item]
+                    currentRowWidth = itemWidth
+                }
+            }
+        }
+        
+        if !currentRow.isEmpty {
+            rows.append(currentRow)
+        }
+        
+        return rows
+    }
+    
+    func estimateWidth(for item: Data.Element) -> CGFloat {
+        // More accurate width calculation for tags
+        let string = String(describing: item)
+        
+        // Use UIKit to measure actual text width
+        let font = UIFont.systemFont(ofSize: 12) // .caption font size
+        let attributes = [NSAttributedString.Key.font: font]
+        let size = (string as NSString).size(withAttributes: attributes)
+        
+        // Add padding (12 horizontal + 8 vertical padding + some buffer)
+        return size.width + 24 + 8 // Extra buffer for safety
+    }
+}
+
+// Helper extension to read view size
+extension View {
+    func readSize(onChange: @escaping (CGSize) -> Void) -> some View {
+        background(
+            GeometryReader { geometryProxy in
+                Color.clear
+                    .preference(key: SizePreferenceKey.self, value: geometryProxy.size)
+            }
+        )
+        .onPreferenceChange(SizePreferenceKey.self, perform: onChange)
+    }
+}
+
+struct SizePreferenceKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
     }
 }
 
@@ -330,15 +455,25 @@ class FoodRepository: ObservableObject {
     
     // Load all food items
     func loadAllFoodItems() async {
+        print("🔄 DEBUG: FoodRepository.loadAllFoodItems() called")
         isLoading = true
         errorMessage = nil
         
         do {
             let firebaseItems = try await firebaseManager.getFoodItems(limit: 50)
+            print("📊 DEBUG: Firebase returned \(firebaseItems.count) total food items")
             
             foodItems = firebaseItems.map { $0.toFoodItem() }
             isLoading = false
+            
+            print("✅ DEBUG: Successfully loaded \(foodItems.count) food items")
+            if !firebaseItems.isEmpty {
+                print("📝 DEBUG: Sample item: \(firebaseItems.first?.name ?? "unknown")")
+            } else {
+                print("⚠️ WARNING: No food items found in Firebase!")
+            }
         } catch {
+            print("❌ DEBUG: Error loading all food items: \(error)")
             errorMessage = "Failed to load food items: \(error.localizedDescription)"
             isLoading = false
         }
