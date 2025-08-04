@@ -12,6 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-08-04
+
+### Added
+- ***Complete Favorites System***: Interactive heart toggle functionality in ExploreView with real-time Firebase synchronization
+- ***FavoritesView***: Dedicated favorites page accessible from ProfileView with consistent UI design matching MyUploadsView patterns
+- **Heart Animation**: Smooth scale animation when toggling favorites (red for favorited, gray for non-favorited)
+- **Badge System Migration**: Automatic data migration ensuring all users have exactly 5 badges (1 active newcomer + 4 challenge badges)
+- **Enhanced Challenge-Badge Mapping**: Perfect 1:1 relationship between 4 challenges and 4 corresponding challenge badges
+- *Firebase Favorites Operations*: `addToFavorites()` and `removeFromFavorites()` with array-based storage
+
+### Fixed
+- ***Points Double Counting***: Removed local points addition to prevent users getting +100 instead of +50 points for challenge completion
+- ***Badge Data Consistency***: Implemented migration system to ensure uniform badge structure across all Firebase users
+- ***Badge Icon Migration***: Automatic update from old 'recycle' icon to 'arrow.3.trianglepath' for Zero Waste Week badge
+- **Build Errors**: Fixed missing `firebaseId` parameter in FoodRepository distance calculations
+- **Challenge Badge Activation**: Badges now properly activate when challenges are completed (no more duplicate badge creation)
+- **Heart Toggle State**: Disabled heart button for mock data items without Firebase IDs to prevent errors
+
+### Changed
+- ***FoodItem Model***: Added `firebaseId` field to support favorites functionality and Firebase document linking
+- **FoodCardView**: Now requires `userProfile` parameter for heart toggle and favorites state management
+- **UserProfileModel**: Enhanced with automatic badge migration trigger during user setup
+- **Challenge System**: Now activates existing badges instead of creating new ones when challenges complete
+- *Firebase Badge Structure*: Updated to include `id` field for better tracking and migration support
+
+### Technical
+- **Real-Time Sync**: Firestore listeners ensure favorites stay synchronized between ExploreView and ProfileView
+- **Migration System**: Backward-compatible badge migration preserves existing active badge states
+- **Debug Infrastructure**: Enhanced logging for troubleshooting favorites operations and badge migrations
+- **Data Validation**: Proper handling of missing Firebase IDs and empty favorites arrays
+- *UI Consistency*: FavoritesView follows established patterns from MyUploadsView (loading states, empty states, Chinese text)
+
 ## [0.3.1] - 2025-08-03
 
 ### Added
