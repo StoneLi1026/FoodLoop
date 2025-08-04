@@ -340,6 +340,7 @@ struct UploadView: View {
             
             let newItem = FoodItem(
                 id: UUID(),
+                firebaseId: nil, // Will be set after Firebase upload
                 name: foodName,
                 category: category,
                 quantity: quantity.isEmpty ? "1份" : quantity,

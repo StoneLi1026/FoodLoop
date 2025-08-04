@@ -3,6 +3,7 @@ import CoreLocation
 
 struct ExploreView: View {
     @EnvironmentObject var foodRepo: FoodRepository
+    @EnvironmentObject var userProfile: UserProfileModel
     @State private var selectedFilter = 0
     @State private var searchText = ""
     @State private var showFridgeMap = false
@@ -142,7 +143,7 @@ struct ExploreView: View {
                             
                             ForEach(filteredList) { item in
                                 NavigationLink(destination: FoodDetailView(foodItem: item)) {
-                                    FoodCardView(item: item)
+                                    FoodCardView(item: item, userProfile: userProfile)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }

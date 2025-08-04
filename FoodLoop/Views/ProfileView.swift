@@ -51,6 +51,15 @@ class UserProfileModel: ObservableObject {
     private func setupUserListener(uid: String) {
         listener?.remove() // Remove previous listener if any
         
+        // First, ensure user has correct badges
+        Task {
+            do {
+                try await firebaseManager.ensureUserHasCorrectBadges(uid: uid)
+            } catch {
+                print("DEBUG: Badge migration failed: \(error)")
+            }
+        }
+        
         listener = firebaseManager.listenToUser(uid: uid) { [weak self] firebaseUser in
             guard let self = self else { return }
             
@@ -71,6 +80,8 @@ class UserProfileModel: ObservableObject {
                     self.favorites = userModel.favorites
                     self.challenges = userModel.challenges
                     self.isLoading = false
+                    
+                    print("DEBUG: User loaded with \(self.badges.count) badges")
                 } else {
                     self.resetToGuestMode()
                 }
@@ -410,17 +421,7 @@ struct ProfileView: View {
             MyUploadsView(user: user, isPresented: $showUploads)
         }
         .sheet(isPresented: $showFavorites) {
-            VStack {
-                Text("收藏")
-                    .font(.title2)
-                    .padding()
-                List(user.favorites, id: \.self) { fav in
-                    Text(fav)
-                }
-                Button("關閉") { showFavorites = false }
-                    .padding()
-            }
-            .presentationDetents([.medium, .large])
+            FavoritesView(user: user, isPresented: $showFavorites)
         }
         .sheet(isPresented: $showChallenges) {
             ChallengesView().environmentObject(user)
@@ -602,5 +603,148 @@ struct MyUploadsView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Favorites View
+struct FavoritesView: View {
+    @ObservedObject var user: UserProfileModel
+    @Binding var isPresented: Bool
+    @State private var favoriteFoodItems: [FoodItem] = []
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+    
+    private let firebaseManager = FirebaseManager.shared
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                if isLoading {
+                    ProgressView("載入中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if favoriteFoodItems.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "heart")
+                            .font(.system(size: 48))
+                            .foregroundColor(.gray)
+                        Text("尚未收藏任何食物")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("在探索頁面點擊愛心來收藏食物！")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(favoriteFoodItems) { item in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(item.name)
+                                            .font(.headline)
+                                        Text(item.category)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing) {
+                                        Text(item.price ?? "免費")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.green)
+                                        Text(item.expires.toRelativeExpireString())
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                // Tags
+                                if !item.tags.isEmpty {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 6) {
+                                            ForEach(item.tags, id: \.self) { tag in
+                                                Text(tag)
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color(.systemGreen).opacity(0.1))
+                                                    .foregroundColor(.green)
+                                                    .cornerRadius(8)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding()
+                }
+            }
+            .navigationTitle("收藏")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("關閉") {
+                        isPresented = false
+                    }
+                }
+            }
+            .onAppear {
+                loadFavoriteItems()
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+    
+    private func loadFavoriteItems() {
+        guard !user.favorites.isEmpty else {
+            isLoading = false
+            return
+        }
+        
+        print("DEBUG: Loading \(user.favorites.count) favorite items")
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                var loadedItems: [FoodItem] = []
+                
+                // Load each favorite food item
+                for favoriteId in user.favorites {
+                    if let firebaseItem = try await loadFoodItem(id: favoriteId) {
+                        loadedItems.append(firebaseItem.toFoodItem())
+                        print("DEBUG: Loaded favorite item: \(firebaseItem.name)")
+                    } else {
+                        print("DEBUG: Could not load favorite item: \(favoriteId)")
+                    }
+                }
+                
+                await MainActor.run {
+                    self.favoriteFoodItems = loadedItems.sorted { $0.expires < $1.expires } // Sort by expiry
+                    self.isLoading = false
+                    print("DEBUG: Loaded \(self.favoriteFoodItems.count) favorite food items")
+                }
+                
+            } catch {
+                print("DEBUG: Error loading favorites: \(error)")
+                await MainActor.run {
+                    self.errorMessage = "載入收藏失敗: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func loadFoodItem(id: String) async throws -> FirebaseFoodItem? {
+        let snapshot = try await Firestore.firestore().collection("food_items").document(id).getDocument()
+        return try? snapshot.data(as: FirebaseFoodItem.self)
     }
 }

@@ -28,13 +28,30 @@ class FirebaseManager: ObservableObject {
         let snapshot = try await userRef.getDocument()
         
         if snapshot.exists {
-            // Update existing user
-            let userData: [String: Any] = [
+            // Update existing user and ensure they have the new badge system
+            let existingUser = try snapshot.data(as: FirebaseUser.self)
+            
+            var userData: [String: Any] = [
                 "name": authUser.displayName ?? "Unknown User",
                 "email": authUser.email ?? "",
                 "photo_url": authUser.photoURL?.absoluteString,
                 "updated_at": Timestamp(date: Date())
             ]
+            
+            // Check if user needs badge system update (less than 5 badges)
+            if existingUser.badges.count < 5 {
+                print("DEBUG: Updating user to new 5-badge system")
+                userData["badges"] = createDefaultBadges().map { badge in
+                    [
+                        "id": badge.id,
+                        "name": badge.name,
+                        "icon": badge.icon,
+                        "active": badge.active,
+                        "earned_at": badge.earnedAt != nil ? Timestamp(date: badge.earnedAt!) : nil
+                    ]
+                }
+            }
+            
             try await userRef.updateData(userData)
         } else {
             // Create new user
@@ -279,8 +296,10 @@ class FirebaseManager: ObservableObject {
     private func createDefaultBadges() -> [FirebaseBadge] {
         return [
             FirebaseBadge(id: "newcomer", name: "新手上路", icon: "star.fill", active: true, earnedAt: Date()),
-            FirebaseBadge(id: "sharer", name: "分享達人", icon: "gift.fill", active: false, earnedAt: nil),
-            FirebaseBadge(id: "eco_warrior", name: "綠色小尖兵", icon: "leaf.fill", active: false, earnedAt: nil)
+            FirebaseBadge(id: "sharing_challenge", name: "分享達人挑戰", icon: "gift.fill", active: false, earnedAt: nil),
+            FirebaseBadge(id: "eco_challenge", name: "環保小尖兵", icon: "leaf.fill", active: false, earnedAt: nil),
+            FirebaseBadge(id: "fridge_challenge", name: "冰箱清潔週", icon: "archivebox.fill", active: false, earnedAt: nil),
+            FirebaseBadge(id: "zero_waste_challenge", name: "Zero Waste Week", icon: "arrow.3.trianglepath", active: false, earnedAt: nil)
         ]
     }
     
@@ -316,6 +335,113 @@ class FirebaseManager: ObservableObject {
                 isActive: true
             )
         ]
+    }
+    
+    // MARK: - Badge Migration System
+    
+    func ensureUserHasCorrectBadges(uid: String) async throws {
+        let userRef = db.collection("users").document(uid)
+        
+        // Get current user data
+        let snapshot = try await userRef.getDocument()
+        guard let userData = try? snapshot.data(as: FirebaseUser.self) else {
+            print("DEBUG: User \(uid) not found for badge migration")
+            return
+        }
+        
+        // Check if migration is needed
+        let hasOldRecycleIcon = userData.badges.contains { $0.icon == "recycle" }
+        let hasIncorrectBadgeCount = userData.badges.count != 5
+        
+        if hasOldRecycleIcon || hasIncorrectBadgeCount {
+            print("DEBUG: Migrating badges for user \(uid) - Count: \(userData.badges.count), HasOldIcon: \(hasOldRecycleIcon)")
+            
+            // Create new badge system, preserving any active states
+            let defaultBadges = createDefaultBadges()
+            var migratedBadges = defaultBadges
+            
+            // Preserve active states from old badges
+            for oldBadge in userData.badges {
+                if oldBadge.active {
+                    // Find corresponding new badge and activate it
+                    for i in 0..<migratedBadges.count {
+                        if shouldActivateBadge(oldBadgeName: oldBadge.name, newBadge: migratedBadges[i]) {
+                            migratedBadges[i] = FirebaseBadge(
+                                id: migratedBadges[i].id,
+                                name: migratedBadges[i].name,
+                                icon: migratedBadges[i].icon,
+                                active: true,
+                                earnedAt: oldBadge.earnedAt ?? Date()
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Update user with new badge system
+            try await userRef.updateData([
+                "badges": migratedBadges.map { badge in
+                    [
+                        "id": badge.id,
+                        "name": badge.name,
+                        "icon": badge.icon,
+                        "active": badge.active,
+                        "earned_at": badge.earnedAt != nil ? Timestamp(date: badge.earnedAt!) : nil
+                    ]
+                },
+                "updated_at": Timestamp(date: Date())
+            ])
+            
+            print("DEBUG: Successfully migrated badges for user \(uid)")
+        } else {
+            print("DEBUG: User \(uid) badges are already up to date")
+        }
+    }
+    
+    private func shouldActivateBadge(oldBadgeName: String, newBadge: FirebaseBadge) -> Bool {
+        // Map old badge names to new badge names/IDs
+        switch oldBadgeName {
+        case "新手上路":
+            return newBadge.id == "newcomer"
+        case "分享達人", "分享達人挑戰":
+            return newBadge.id == "sharing_challenge"
+        case "綠色小尖兵", "環保小尖兵":
+            return newBadge.id == "eco_challenge"
+        case "冰箱清潔週":
+            return newBadge.id == "fridge_challenge"
+        case "Zero Waste Week":
+            return newBadge.id == "zero_waste_challenge"
+        default:
+            return false
+        }
+    }
+    
+    // MARK: - Favorites Management
+    
+    func addToFavorites(uid: String, foodItemId: String) async throws {
+        let userRef = db.collection("users").document(uid)
+        
+        try await userRef.updateData([
+            "favorites": FieldValue.arrayUnion([foodItemId]),
+            "updated_at": Timestamp(date: Date())
+        ])
+        
+        print("DEBUG: Added \(foodItemId) to favorites for user \(uid)")
+    }
+    
+    func removeFromFavorites(uid: String, foodItemId: String) async throws {
+        let userRef = db.collection("users").document(uid)
+        
+        try await userRef.updateData([
+            "favorites": FieldValue.arrayRemove([foodItemId]),
+            "updated_at": Timestamp(date: Date())
+        ])
+        
+        print("DEBUG: Removed \(foodItemId) from favorites for user \(uid)")
+    }
+    
+    func isFavorited(uid: String, foodItemId: String, userFavorites: [String]) -> Bool {
+        return userFavorites.contains(foodItemId)
     }
 }
 

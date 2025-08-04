@@ -68,6 +68,7 @@ struct FirebaseFoodItem: Codable, Identifiable {
         
         return FoodItem(
             id: UUID(uuidString: id ?? "") ?? UUID(),
+            firebaseId: id, // Store Firebase document ID
             name: name,
             category: category,
             quantity: quantity,

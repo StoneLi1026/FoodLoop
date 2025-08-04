@@ -6,6 +6,7 @@ import GeoFireUtils
 // 食物資料模型
 struct FoodItem: Identifiable {
     let id: UUID
+    let firebaseId: String? // Firebase document ID for favorites
     let name: String
     let category: String
     let quantity: String
@@ -71,6 +72,16 @@ struct Badge: Identifiable, Hashable {
 // 食物卡片
 struct FoodCardView: View {
     let item: FoodItem
+    @ObservedObject var userProfile: UserProfileModel
+    @State private var isAnimating = false
+    
+    private let firebaseManager = FirebaseManager.shared
+    
+    var isFavorited: Bool {
+        guard let firebaseId = item.firebaseId else { return false }
+        return userProfile.favorites.contains(firebaseId)
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             RoundedRectangle(cornerRadius: 12)
@@ -88,8 +99,17 @@ struct FoodCardView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 40) {
-                Image(systemName: "heart")
-                    .foregroundColor(.gray)
+                Button(action: {
+                    toggleFavorite()
+                }) {
+                    Image(systemName: isFavorited ? "heart.fill" : "heart")
+                        .foregroundColor(isFavorited ? .red : .gray)
+                        .scaleEffect(isAnimating ? 1.2 : 1.0)
+                        .animation(.easeInOut(duration: 0.1), value: isAnimating)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(item.firebaseId == nil) // Disable for mock data
+                
                 Text(item.price ?? "免費")
                     .font(.subheadline)
                     .foregroundColor(.black)
@@ -99,6 +119,47 @@ struct FoodCardView: View {
         .background(Color.white)
         .cornerRadius(20)
         .shadow(color: Color(.black).opacity(0.04), radius: 6, x: 0, y: 2)
+    }
+    
+    private func toggleFavorite() {
+        guard let firebaseId = item.firebaseId,
+              let currentUserID = userProfile.currentUserID else {
+            print("DEBUG: Cannot toggle favorite - missing firebaseId or userID")
+            return
+        }
+        
+        // Trigger animation
+        withAnimation(.easeInOut(duration: 0.1)) {
+            isAnimating = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isAnimating = false
+            }
+        }
+        
+        Task {
+            do {
+                if isFavorited {
+                    // Remove from favorites
+                    try await firebaseManager.removeFromFavorites(uid: currentUserID, foodItemId: firebaseId)
+                    await MainActor.run {
+                        if let index = userProfile.favorites.firstIndex(of: firebaseId) {
+                            userProfile.favorites.remove(at: index)
+                        }
+                    }
+                } else {
+                    // Add to favorites
+                    try await firebaseManager.addToFavorites(uid: currentUserID, foodItemId: firebaseId)
+                    await MainActor.run {
+                        userProfile.favorites.append(firebaseId)
+                    }
+                }
+            } catch {
+                print("ERROR: Failed to toggle favorite: \(error)")
+            }
+        }
     }
 }
 
@@ -429,6 +490,7 @@ class FoodRepository: ObservableObject {
                 let distance = userLocation.distance(from: itemLocation) / 1000 // Convert to km
                 foodItem = FoodItem(
                     id: foodItem.id,
+                    firebaseId: foodItem.firebaseId,
                     name: foodItem.name,
                     category: foodItem.category,
                     quantity: foodItem.quantity,
@@ -548,6 +610,7 @@ class FoodRepository: ObservableObject {
             let distance = String(format: "%.1fkm", Double.random(in: 0.3...3.0))
             result.append(FoodItem(
                 id: UUID(),
+                firebaseId: nil, // Mock data - no Firebase ID
                 name: name,
                 category: category,
                 quantity: quantity,

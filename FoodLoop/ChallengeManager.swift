@@ -151,16 +151,21 @@ class ChallengeManager: ObservableObject {
     private func handleChallengeCompletion(_ challenge: Challenge, userID: String, userProfile: UserProfileModel) async {
         print("DEBUG: Challenge completed: \(challenge.titleZh)")
         
-        // Create badge
-        let newBadge = Badge(
-            name: challenge.titleZh,
-            icon: getBadgeIcon(for: challenge),
-            active: true
-        )
+        // Find and activate existing badge
+        for i in 0..<userProfile.badges.count {
+            if userProfile.badges[i].name == challenge.titleZh {
+                userProfile.badges[i] = Badge(
+                    name: userProfile.badges[i].name,
+                    icon: userProfile.badges[i].icon,
+                    active: true
+                )
+                print("DEBUG: Activated badge: \(userProfile.badges[i].name)")
+                break
+            }
+        }
         
-        // Update local data
-        userProfile.badges.append(newBadge)
-        userProfile.points += 50 // Bonus points
+        // Don't add points locally - Firebase will handle it
+        // userProfile.points += 50 // This will be updated by Firebase sync
         
         // Remove completed challenge
         if let index = activeChallenges.firstIndex(where: { $0.id == challenge.id }) {
@@ -170,32 +175,54 @@ class ChallengeManager: ObservableObject {
             userProfile.challenges.remove(at: index)
         }
         
-        // Update Firebase
-        await updateBadgeInFirebase(newBadge, userID: userID)
+        // Update Firebase - activate the badge
+        await activateBadgeInFirebase(challengeTitle: challenge.titleZh, userID: userID)
     }
     
-    private func updateBadgeInFirebase(_ badge: Badge, userID: String) async {
+    private func activateBadgeInFirebase(challengeTitle: String, userID: String) async {
         do {
             let userRef = Firestore.firestore().collection("users").document(userID)
             
-            // Add badge to user's badges array
+            // Get current user data
+            let snapshot = try await userRef.getDocument()
+            guard let userData = try? snapshot.data(as: FirebaseUser.self) else {
+                print("ERROR: User not found for badge activation")
+                return
+            }
+            
+            // Find and activate the badge
+            var updatedBadges = userData.badges
+            for i in 0..<updatedBadges.count {
+                if updatedBadges[i].name == challengeTitle {
+                    updatedBadges[i] = FirebaseBadge(
+                        id: updatedBadges[i].id,
+                        name: updatedBadges[i].name,
+                        icon: updatedBadges[i].icon,
+                        active: true,
+                        earnedAt: Date()
+                    )
+                    print("DEBUG: Badge activated in Firebase: \(challengeTitle)")
+                    break
+                }
+            }
+            
+            // Update user document
             try await userRef.updateData([
-                "badges": FieldValue.arrayUnion([
+                "badges": updatedBadges.map { badge in
                     [
+                        "id": badge.id,
                         "name": badge.name,
                         "icon": badge.icon,
                         "active": badge.active,
-                        "earned_at": Timestamp(date: Date())
+                        "earned_at": badge.earnedAt != nil ? Timestamp(date: badge.earnedAt!) : nil
                     ]
-                ]),
+                },
                 "points": FieldValue.increment(Int64(50)),
                 "updated_at": Timestamp(date: Date())
             ])
             
-            print("DEBUG: Successfully added badge: \(badge.name)")
-            
         } catch {
-            print("DEBUG: Failed to update badge in Firebase: \(error)")
+            print("ERROR: Failed to activate badge in Firebase: \(error)")
         }
     }
     
@@ -258,20 +285,6 @@ class ChallengeManager: ObservableObject {
         } ?? .sharing
     }
     
-    private func getBadgeIcon(for challenge: Challenge) -> String {
-        if challenge.titleZh.contains("分享") {
-            return "gift.fill"
-        } else if challenge.titleZh.contains("環保") {
-            return "leaf.fill"
-        } else if challenge.titleZh.contains("冰箱") {
-            return "archivebox.fill"
-        } else if challenge.title.contains("Zero Waste") {
-            return "recycle"
-        } else {
-            return "star.fill"
-        }
-    }
-    
     // MARK: - Public Interface
     
     func syncWithUser(_ userProfile: UserProfileModel) {
@@ -280,24 +293,5 @@ class ChallengeManager: ObservableObject {
         Task {
             await loadChallengeProgress(for: userID, userProfile: userProfile)
         }
-    }
-}
-
-// MARK: - Color Extensions
-extension Color {
-    func toHexString() -> String {
-        let uiColor = UIColor(self)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        
-        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        
-        let r = Int(red * 255)
-        let g = Int(green * 255)
-        let b = Int(blue * 255)
-        
-        return String(format: "%02X%02X%02X", r, g, b)
     }
 }
